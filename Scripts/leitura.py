@@ -1,72 +1,98 @@
 import datetime, time
 import pandas as pd
 import os
+import mysql.connector
+import boto3
+
 # Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
 
 arquivo = "resultados_metricas.csv"
+last_index = 0
+
+bucket = "SEU-BUCKET"
+caminho_s3 = "dadosTratados/resultados_metricas.csv"
+
+s3 = boto3.client("s3")
 
 # Horário de última leitura para evitar processar os mesmos dados repetidamente.
 last_horario = None
 
-# loop infinito para ler o arquivo CSV a cada 10 segundos e processar os dados mais recentes.
+# conexão MySQL (ajuste)
+conn = mysql.connector.connect(
+    host="SEU_HOST",
+    user="SEU_USER",
+    password="SUA_SENHA",
+    database="SEU_BANCO"
+)
+cursor = conn.cursor()
+
 while True:
 
+    # lê CSV bruto
     df = pd.read_csv("metricasPandas.csv")
 
-    horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # pega somente linhas novas
+    novos = df.iloc[last_index:]
 
-    # pega a última linha do DataFrame, que contém os dados mais recentes coletados.
-    ultimo = df.iloc[-1]
-
-    # Se arquivo não tiver sido atualizado desde a última leitura, espera 10 segundos e continua o loop.
-    if ultimo["horario"] == last_horario:
-        print(f"sem novos dados desde {horas}")
+    if novos.empty:
+        print("sem novos dados")
         time.sleep(10)
         continue
 
-    last_horario = ultimo["horario"]
+    for _, ultimo in novos.iterrows():
 
-    cpuPorcentagem = ultimo["cpuPorcentagem"]
-    cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
-    cpuNucleosLogicos = ultimo["cpuNucleosLogicos"]
+        horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    cpuTempoUser = round(ultimo["cpuTempoUser"] / 60)
-    cpuTempoSistema = ultimo["cpuTempoSistema"]
-    cpuTempoInativo = ultimo["cpuTempoInativo"]
+        macAddress = ultimo["macAddress"]
 
-    ramLivre  = round(ultimo["ramLivre"]  / 1024**3, 2)
-    ramUsada  = round(ultimo["ramUsada"]  / 1024**3, 2)
-    ramTotal  = round(ultimo["ramTotal"]  / 1024**3, 2)
+        # busca id da maquina
+        cursor.execute(
+            "SELECT id FROM maquina WHERE mac_address = %s",
+            (macAddress,)
+        )
+        resultado = cursor.fetchone()
+        id_maquina = resultado[0] if resultado else None
 
-    discoLivre = round(ultimo["discoLivre"] / 1024**3, 2)
-    discoUsado = round(ultimo["discoUsado"] / 1024**3, 2)
-    discoTotal = round(ultimo["discoTotal"] / 1024**3, 2)
+        cpuPorcentagem = ultimo["cpuPorcentagem"]
+        cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
+        cpuNucleosLogicos = ultimo["cpuNucleosLogicos"]
 
-    mediaRam   = round(df["ramUsada"].mean() / 1024**3, 2)
-    porcentagemRam = round((ramUsada / ramTotal) * 100, 2)
-    mediaDisco = round(df["discoUsado"].mean() / 1024**3, 2)
-    porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
+        cpuTempoUser = round(ultimo["cpuTempoUser"] / 60)
+        cpuTempoSistema = ultimo["cpuTempoSistema"]
+        cpuTempoInativo = ultimo["cpuTempoInativo"]
 
-    dados_resultados = {
-        "horas": [horas],
-        "cpuPorcentagem": [cpuPorcentagem],
-        "cpuNucleosFisicos": [cpuNucleosFisicos],
-        "cpuNucleosLogicos": [cpuNucleosLogicos],
-        "cpuTempoUser": [cpuTempoUser],
-        "cpuTempoSistema": [cpuTempoSistema],
-        "cpuTempoInativo": [cpuTempoInativo],
-        "ramLivre": [ramLivre],
-        "ramUsada": [ramUsada],
-        "ramTotal": [ramTotal],
-        "discoLivre": [discoLivre],
-        "discoUsado": [discoUsado],
-        "discoTotal": [discoTotal],
-        "mediaRamGB": [mediaRam],
-        "mediaDiscoGB": [mediaDisco],
-        "porcentagemRam": [porcentagemRam],
-        "porcentagemDisco": [porcentagemDisco]
-    }
+        ramLivre  = round(ultimo["ramLivre"]  / 1024**3, 2)
+        ramUsada  = round(ultimo["ramUsada"]  / 1024**3, 2)
+        ramTotal  = round(ultimo["ramTotal"]  / 1024**3, 2)
 
+        discoLivre = round(ultimo["discoLivre"] / 1024**3, 2)
+        discoUsado = round(ultimo["discoUsado"] / 1024**3, 2)
+        discoTotal = round(ultimo["discoTotal"] / 1024**3, 2)
+
+        porcentagemRam = round((ramUsada / ramTotal) * 100, 2)
+        porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
+
+        dados_resultados = {
+            "idMaquina": [id_maquina],
+            "macAddress": [macAddress],
+            "horas": [horas],
+            "cpuPorcentagem": [cpuPorcentagem],
+            "cpuNucleosFisicos": [cpuNucleosFisicos],
+            "cpuNucleosLogicos": [cpuNucleosLogicos],
+            "cpuTempoUser": [cpuTempoUser],
+            "cpuTempoSistema": [cpuTempoSistema],
+            "cpuTempoInativo": [cpuTempoInativo],
+            "ramLivre": [ramLivre],
+            "ramUsada": [ramUsada],
+            "ramTotal": [ramTotal],
+            "discoLivre": [discoLivre],
+            "discoUsado": [discoUsado],
+            "discoTotal": [discoTotal],
+            "porcentagemRam": [porcentagemRam],
+            "porcentagemDisco": [porcentagemDisco]
+        }
+
+        
     # Cria o arquivo CSV se ele não existir, ou anexa os dados se ele já existir.
     df_resultados = pd.DataFrame(dados_resultados)
     if not os.path.exists(arquivo):
@@ -78,7 +104,9 @@ while True:
     # Imprime os dados mais recentes e as médias no console.
     print(f"""      
 ======================================
- 
+ID Máquina: {id_maquina}
+MAC: {macAddress} 
+          
 CPU Porcentagem: {cpuPorcentagem}%
 CPU Núcleos Físicos: {cpuNucleosFisicos}
 CPU Núcleos Lógicos: {cpuNucleosLogicos}
@@ -102,14 +130,19 @@ Disco Livre: {discoLivre} GB
 ----------------------------------
 
 Porcentagem RAM Usada: {porcentagemRam}%
-Média RAM Usada: {mediaRam} GB
 
 Porcentagem Disco Usado: {porcentagemDisco}%
-Média Disco Usado: {mediaDisco} GB
 
 Horário: {horas}
 ======================================
 """)
+    
+    # envia arquivo atualizado para o S3 (sobrescreve)
+    s3.upload_file(arquivo, bucket, caminho_s3)
+    print("CSV tratado atualizado no S3")
+
+    # atualiza ponteiro
+    last_index = len(df)
     
     # Espera 10 segundos antes de realizar a próxima leitura.
     time.sleep(10)

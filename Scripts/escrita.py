@@ -1,10 +1,28 @@
 import psutil, datetime, time
 import pandas as pd
 import os
+import boto3
+import uuid
+
+
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
 
 arquivo = "metricasPandas.csv"
+
+bucket = "SEU-NOME-DO-BUCKET"
+caminho_s3 = "dadosBrutos/metricasPandas.csv"
+
+s3 = boto3.client("s3")
+
+# pega MAC uma vez só
+def pegar_mac():
+    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
+                    for ele in range(0,8*6,8)][::-1])
+    return mac
+
+mac_address = pegar_mac()
+print(f"MAC da máquina: {mac_address}")
 
 # loop infinito para definir e enviar as métricas para um arquivo CSV a cada 10 segundos.
 while True:
@@ -30,7 +48,7 @@ while True:
     print(f"""
 |      
 |    Horário: {horas}
-|          
+|    MacAddress: {mac_address},     
 ======================================
  
 CPU Porcentagem: {cpuPorcentagem}%
@@ -57,15 +75,22 @@ Disco Livre: {discoLivre}
 """)
     
     # Definição dos dados a serem escritos no arquivo CSV.
-    dados = {"horario": [horas], "cpuPorcentagem": [cpuPorcentagem], "cpuNucleosFisicos": [cpuNucleosFisicos], "cpuNucleosLogicos": [cpuNucleosLogicos], "cpuTempoUser": [cpuTempoUser], "cpuTempoSistema": [cpuTempoSistema], "cpuTempoInativo": [cpuTempoInativo], "ramUsada": [ramUsada], "ramTotal": [ramTotal], "ramLivre": [ramLivre], "discoUsado": [discoUsado], "discoTotal": [discoTotal], "discoLivre": [discoLivre]}
+    dados = {"macAddress": [mac_address],"horario": [horas], "cpuPorcentagem": [cpuPorcentagem], "cpuNucleosFisicos": [cpuNucleosFisicos], "cpuNucleosLogicos": [cpuNucleosLogicos], "cpuTempoUser": [cpuTempoUser], "cpuTempoSistema": [cpuTempoSistema], "cpuTempoInativo": [cpuTempoInativo], "ramUsada": [ramUsada], "ramTotal": [ramTotal], "ramLivre": [ramLivre], "discoUsado": [discoUsado], "discoTotal": [discoTotal], "discoLivre": [discoLivre]}
 
     #Criação do dataframe usando a biblioteca pandas.
     df = pd.DataFrame(dados)
+
 
     # Cria o arquivo CSV se ele não existir, ou anexa os dados se ele já existir.
     if not os.path.exists(arquivo):
         df.to_csv(arquivo, index=False)
     else:
         df.to_csv(arquivo, mode="a", header=False, index=False)
+
+    # envia (sobrescreve) no S3
+    s3.upload_file(arquivo, bucket, caminho_s3)
+
+    print("CSV atualizado no S3")
+    
     time.sleep(10)
     
