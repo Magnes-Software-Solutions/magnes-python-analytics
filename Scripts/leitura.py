@@ -6,11 +6,11 @@ import boto3
 
 # Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
 
-arquivo = "resultados_metricas.csv"
+arquivo = "dadostratados.csv"
 last_index = 0
 
-bucket = "SEU-BUCKET"
-caminho_s3 = "dadosTratados/resultados_metricas.csv"
+bucket = "s3-projeto-magnes-2026.04.09"
+caminho_s3 = "trusted/dadosTratados.csv"
 
 s3 = boto3.client("s3")
 
@@ -29,7 +29,8 @@ cursor = conn.cursor()
 while True:
 
     # lê CSV bruto
-    df = pd.read_csv("metricasPandas.csv")
+    response = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "raw/dadosBrutos.csv")
+    df = pd.read_csv("dadosBrutos.csv")
 
     # pega somente linhas novas
     novos = df.iloc[last_index:]
