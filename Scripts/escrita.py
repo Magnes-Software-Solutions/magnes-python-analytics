@@ -8,12 +8,16 @@ import uuid
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
 
-arquivo = "metricasPandas.csv"
+arquivo = "dadosBrutos.csv"
 
-bucket = "SEU-NOME-DO-BUCKET"
-caminho_s3 = "dadosBrutos/metricasPandas.csv"
+bucket = "s3-projeto-magnes-2026.04.09"
+caminho_s3 = "raw/dadosBrutos.csv"
 
-s3 = boto3.client("s3")
+s3 = boto3.client('s3',
+                  aws_access_key_id = "",
+                  aws_secret_access_key = "",
+                  aws_session_token = ""
+                    )
 
 # pega MAC uma vez só
 def pegar_mac():
@@ -93,4 +97,5 @@ Disco Livre: {discoLivre}
     print("CSV atualizado no S3")
     
     time.sleep(10)
+
     
