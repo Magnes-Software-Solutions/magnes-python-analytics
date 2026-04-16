@@ -1,7 +1,7 @@
 import datetime, time
 import pandas as pd
 import os
-import mysql.connector
+#import mysql.connector
 import boto3
 
 # Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
@@ -18,19 +18,20 @@ s3 = boto3.client("s3")
 last_horario = None
 
 # conexão MySQL (ajuste)
-conn = mysql.connector.connect(
-    host="SEU_HOST",
-    user="SEU_USER",
-    password="SUA_SENHA",
-    database="SEU_BANCO"
-)
-cursor = conn.cursor()
+#conn = mysql.connector.connect(
+#    host="SEU_HOST",
+#    user="SEU_USER",
+#    password="SUA_SENHA",
+#    database="SEU_BANCO"
+#)
+
+#cursor = conn.cursor()
 
 while True:
 
     # lê CSV bruto
     response = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "raw/dadosBrutos.csv")
-    df = pd.read_csv("dadosBrutos.csv")
+    df = pd.read_csv(response["Body"])
 
     # pega somente linhas novas
     novos = df.iloc[last_index:]
@@ -47,12 +48,12 @@ while True:
         macAddress = ultimo["macAddress"]
 
         # busca id da maquina
-        cursor.execute(
-            "SELECT id FROM maquina WHERE mac_address = %s",
-            (macAddress,)
-        )
-        resultado = cursor.fetchone()
-        id_maquina = resultado[0] if resultado else None
+        #cursor.execute(
+        #    "SELECT id FROM maquina WHERE mac_address = %s",
+        #    (macAddress,)
+        #)
+        #resultado = cursor.fetchone()
+        #id_maquina = resultado[0] if resultado else None
 
         cpuPorcentagem = ultimo["cpuPorcentagem"]
         cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
@@ -74,7 +75,7 @@ while True:
         porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
 
         dados_resultados = {
-            "idMaquina": [id_maquina],
+        #    "idMaquina": [id_maquina],
             "macAddress": [macAddress],
             "horas": [horas],
             "cpuPorcentagem": [cpuPorcentagem],
@@ -105,7 +106,7 @@ while True:
     # Imprime os dados mais recentes e as médias no console.
     print(f"""      
 ======================================
-ID Máquina: {id_maquina}
+ID Máquina: {"maquina1"}
 MAC: {macAddress} 
           
 CPU Porcentagem: {cpuPorcentagem}%

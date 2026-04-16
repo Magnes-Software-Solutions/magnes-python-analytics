@@ -32,6 +32,8 @@ print(f"MAC da máquina: {mac_address}")
 while True:
     horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    total_processos = len(psutil.pids())
+
     cpuPorcentagem = psutil.cpu_percent()
     cpuNucleosFisicos = psutil.cpu_count(logical=False)
     cpuNucleosLogicos = psutil.cpu_count()
@@ -79,7 +81,7 @@ Disco Livre: {discoLivre}
 """)
     
     # Definição dos dados a serem escritos no arquivo CSV.
-    dados = {"macAddress": [mac_address],"horario": [horas], "cpuPorcentagem": [cpuPorcentagem], "cpuNucleosFisicos": [cpuNucleosFisicos], "cpuNucleosLogicos": [cpuNucleosLogicos], "cpuTempoUser": [cpuTempoUser], "cpuTempoSistema": [cpuTempoSistema], "cpuTempoInativo": [cpuTempoInativo], "ramUsada": [ramUsada], "ramTotal": [ramTotal], "ramLivre": [ramLivre], "discoUsado": [discoUsado], "discoTotal": [discoTotal], "discoLivre": [discoLivre]}
+    dados = {"macAddress": [mac_address],"horario": [horas], "cpuPorcentagem": [cpuPorcentagem], "cpuNucleosFisicos": [cpuNucleosFisicos], "cpuNucleosLogicos": [cpuNucleosLogicos], "cpuTempoUser": [cpuTempoUser], "cpuTempoSistema": [cpuTempoSistema], "cpuTempoInativo": [cpuTempoInativo], "ramUsada": [ramUsada], "ramTotal": [ramTotal], "ramLivre": [ramLivre], "discoUsado": [discoUsado], "discoTotal": [discoTotal], "discoLivre": [discoLivre], "totalProcessos": [total_processos]}
 
     #Criação do dataframe usando a biblioteca pandas.
     df = pd.DataFrame(dados)
