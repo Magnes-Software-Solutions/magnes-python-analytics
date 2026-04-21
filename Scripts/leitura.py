@@ -1,16 +1,20 @@
 import datetime, time
 import pandas as pd
 import os
-#import mysql.connector
+import mysql.connector
 import boto3
 
 # Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
 
-arquivo = "dadostratados.csv"
+arquivo = "dadosTratados.csv"
+arquivo_client = "dadosPerfeitos.csv"
+
 last_index = 0
+last_index_trusted = 0
 
 bucket = "s3-projeto-magnes-2026.04.09"
 caminho_s3 = "trusted/dadosTratados.csv"
+caminho_client = "client/dadosDashboard.csv"
 
 s3 = boto3.client("s3")
 
@@ -18,14 +22,14 @@ s3 = boto3.client("s3")
 last_horario = None
 
 # conexão MySQL (ajuste)
-#conn = mysql.connector.connect(
-#    host="SEU_HOST",
-#    user="SEU_USER",
-#    password="SUA_SENHA",
-#    database="SEU_BANCO"
-#)
+conn = mysql.connector.connect(
+    host="localhost",
+    user="magnes",
+    password="Magnes#2026",
+    database="magnes"
+)
 
-#cursor = conn.cursor()
+cursor = conn.cursor()
 
 while True:
 
@@ -47,13 +51,21 @@ while True:
 
         macAddress = ultimo["macAddress"]
 
-        # busca id da maquina
-        #cursor.execute(
-        #    "SELECT id FROM maquina WHERE mac_address = %s",
-        #    (macAddress,)
-        #)
-        #resultado = cursor.fetchone()
-        #id_maquina = resultado[0] if resultado else None
+        cursor.execute("""
+            SELECT r.razaoSocial
+            FROM maquina m
+            JOIN redeHospital r
+            ON m.fkRedeHospital = r.idRedeHospital
+            WHERE m.macAddress = %s
+            """, (macAddress,))
+
+        resultado = cursor.fetchone()
+
+        if resultado:       
+            empresa = resultado[0]
+        else:
+            empresa = None
+
 
         cpuPorcentagem = ultimo["cpuPorcentagem"]
         cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
@@ -74,8 +86,9 @@ while True:
         porcentagemRam = round((ramUsada / ramTotal) * 100, 2)
         porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
 
+
         dados_resultados = {
-        #    "idMaquina": [id_maquina],
+            "empresa": [empresa],
             "macAddress": [macAddress],
             "horas": [horas],
             "cpuPorcentagem": [cpuPorcentagem],
@@ -106,7 +119,7 @@ while True:
     # Imprime os dados mais recentes e as médias no console.
     print(f"""      
 ======================================
-ID Máquina: {"maquina1"}
+EMPRESA: {empresa}          
 MAC: {macAddress} 
           
 CPU Porcentagem: {cpuPorcentagem}%
@@ -139,13 +152,105 @@ Horário: {horas}
 ======================================
 """)
     
-    # envia arquivo atualizado para o S3 (sobrescreve)
-    s3.upload_file(arquivo, bucket, caminho_s3)
-    print("CSV tratado atualizado no S3")
 
-    # atualiza ponteiro
-    last_index = len(df)
+    # envia arquivo atualizado para trusted no S3 (sobrescreve)
+    s3.upload_file(arquivo, bucket, caminho_s3)
+    print("CSV tratado atualizado no S3 trusted")
+
+    # lê dadosTratados.CSV do S3 
+    response_trusted = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "trusted/dadosTratados.csv")
+    df_trusted = pd.read_csv(response_trusted["Body"])
+
+    # pega somente linhas novas do trusted
+    novos_trusted = df_trusted.iloc[last_index_trusted:]
+
+    if not novos_trusted.empty:
+
+        for _, linha in novos_trusted.iterrows():
+
+            empresa = linha["empresa"]
+            macAddress = linha["macAddress"]
+            horas = linha["horas"]
+
+            cpuPorcentagem = linha["cpuPorcentagem"]
+            porcentagemRam = linha["porcentagemRam"]
+            porcentagemDisco = linha["porcentagemDisco"]
+
+            cursor.execute("""
+                SELECT 
+                MAX(CASE WHEN c.tipoComponente = 'CPU' THEN cm.limite END) as limiteCPU,
+                MAX(CASE WHEN c.tipoComponente = 'RAM' THEN cm.limite END) as limiteRAM,
+                MAX(CASE WHEN c.tipoComponente = 'Disco' THEN cm.limite END) as limiteDisco
+                FROM componente_maquina cm
+                JOIN componente c ON cm.fkComponente = c.idComponente
+                WHERE cm.fkMaquina = %s
+                """, (macAddress,))
+
+            limites = cursor.fetchone()
+
+            limiteCPU = limites[0] if limites else None
+            limiteRAM = limites[1] if limites else None
+            limiteDisco = limites[2] if limites else None
+
+            alertaCPU = False
+            alertaRAM = False
+            alertaDisco = False
+
+            if cpuPorcentagem > limiteCPU:
+                alertaCPU = True
+
+            if porcentagemRam > limiteRAM:
+                alertaRAM = True
+
+            if porcentagemDisco > limiteDisco:
+                alertaDisco = True
+
+            dados_client = {
+            "empresa": [empresa],
+            "macAddress": [macAddress],
+            "horario": [horas],
+            "cpuUso": [cpuPorcentagem],
+            "ramUso": [porcentagemRam],
+            "discoUso": [porcentagemDisco],
+            "limiteCPU": [limiteCPU],
+            "limiteRAM": [limiteRAM],
+            "limiteDisco": [limiteDisco],
+            "alertaCPU": [alertaCPU],
+            "alertaRAM": [alertaRAM],
+            "alertaDisco": [alertaDisco]
+            }
     
+            df_client = pd.DataFrame(dados_client)
+
+            if not os.path.exists(arquivo_client):
+                df_client.to_csv(arquivo_client, index=False)
+            else:
+                df_client.to_csv(arquivo_client, mode="a", header=False, index=False)
+
+            print(f"""
+==============================
+EMPRESA: {empresa}
+MAC: {macAddress}
+
+CPU: {cpuPorcentagem}% | ALERTA: {alertaCPU}
+RAM: {porcentagemRam}% | ALERTA: {alertaRAM}
+DISCO: {porcentagemDisco}% | ALERTA: {alertaDisco}
+LIMITECPU: {limiteCPU}%
+LIMITERAM: {limiteRAM}%
+LIMITEDISCO: {limiteDisco}%            
+
+Horário: {horas}
+==============================
+""")
+    
+    # envia arquivo atualizado para client no S3 (sobrescreve)
+    s3.upload_file(arquivo_client, bucket, caminho_client)
+    print("CSV perfeito atualizado no S3 client")
+
+    # atualiza ponteiros
+    last_index = len(df)
+    last_index_trusted = len(df_trusted)
+
     # Espera 10 segundos antes de realizar a próxima leitura.
     time.sleep(10)
 
