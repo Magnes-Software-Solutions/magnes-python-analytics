@@ -77,6 +77,10 @@ Disco Usado: {discoUsado}
 Disco Total: {discoTotal} 
 Disco Livre: {discoLivre}
 
+----------------------------------
+
+Total Processos: {total_processos}
+
 ======================================
 """)
     

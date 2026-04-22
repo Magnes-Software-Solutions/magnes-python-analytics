@@ -14,7 +14,7 @@ last_index_trusted = 0
 
 bucket = "s3-projeto-magnes-2026.04.09"
 caminho_s3 = "trusted/dadosTratados.csv"
-caminho_client = "client/dadosDashboard.csv"
+caminho_client = "client/dadosPerfeitos.csv"
 
 s3 = boto3.client("s3")
 
@@ -70,6 +70,7 @@ while True:
         cpuPorcentagem = ultimo["cpuPorcentagem"]
         cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
         cpuNucleosLogicos = ultimo["cpuNucleosLogicos"]
+        total_processos = ultimo["totalProcessos"]
 
         cpuTempoUser = round(ultimo["cpuTempoUser"] / 60)
         cpuTempoSistema = ultimo["cpuTempoSistema"]
@@ -85,6 +86,7 @@ while True:
 
         porcentagemRam = round((ramUsada / ramTotal) * 100, 2)
         porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
+
 
 
         dados_resultados = {
@@ -104,7 +106,8 @@ while True:
             "discoUsado": [discoUsado],
             "discoTotal": [discoTotal],
             "porcentagemRam": [porcentagemRam],
-            "porcentagemDisco": [porcentagemDisco]
+            "porcentagemDisco": [porcentagemDisco],
+            "totalProcessos": [total_processos]
         }
 
         
@@ -148,6 +151,8 @@ Porcentagem RAM Usada: {porcentagemRam}%
 
 Porcentagem Disco Usado: {porcentagemDisco}%
 
+Total de Processos Executados: {total_processos}
+
 Horário: {horas}
 ======================================
 """)
@@ -159,7 +164,7 @@ Horário: {horas}
 
     # lê dadosTratados.CSV do S3 
     response_trusted = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "trusted/dadosTratados.csv")
-    df_trusted = pd.read_csv(response_trusted["Body"])
+    df_trusted = pd.read_csv(response_trusted["Body"], on_bad_lines="skip")
 
     # pega somente linhas novas do trusted
     novos_trusted = df_trusted.iloc[last_index_trusted:]
@@ -176,11 +181,15 @@ Horário: {horas}
             porcentagemRam = linha["porcentagemRam"]
             porcentagemDisco = linha["porcentagemDisco"]
 
+            ramUsada = linha["ramUsada"]
+            discoUsado = linha["discoUsado"]
+            total_processos = linha["totalProcessos"]
+
             cursor.execute("""
                 SELECT 
-                MAX(CASE WHEN c.tipoComponente = 'CPU' THEN cm.limite END) as limiteCPU,
-                MAX(CASE WHEN c.tipoComponente = 'RAM' THEN cm.limite END) as limiteRAM,
-                MAX(CASE WHEN c.tipoComponente = 'Disco' THEN cm.limite END) as limiteDisco
+                MAX(CASE WHEN c.tipoComponente = 'Processador' THEN cm.limite END) as limiteCPU,
+                MAX(CASE WHEN c.tipoComponente = 'Memória' THEN cm.limite END) as limiteRAM,
+                MAX(CASE WHEN c.tipoComponente = 'Armazenamento' THEN cm.limite END) as limiteDisco
                 FROM componente_maquina cm
                 JOIN componente c ON cm.fkComponente = c.idComponente
                 WHERE cm.fkMaquina = %s
@@ -210,14 +219,17 @@ Horário: {horas}
             "macAddress": [macAddress],
             "horario": [horas],
             "cpuUso": [cpuPorcentagem],
+            "ramUsoBruto": [ramUsada],
             "ramUso": [porcentagemRam],
+            "discoUsoBruto": [discoUsado],
             "discoUso": [porcentagemDisco],
             "limiteCPU": [limiteCPU],
             "limiteRAM": [limiteRAM],
             "limiteDisco": [limiteDisco],
             "alertaCPU": [alertaCPU],
             "alertaRAM": [alertaRAM],
-            "alertaDisco": [alertaDisco]
+            "alertaDisco": [alertaDisco],
+            "totalProcessos": [total_processos]
             }
     
             df_client = pd.DataFrame(dados_client)
@@ -232,12 +244,15 @@ Horário: {horas}
 EMPRESA: {empresa}
 MAC: {macAddress}
 
+RAM VALOR: {ramUsada}GB
+DISCO VALOR: {discoUsado}GB
 CPU: {cpuPorcentagem}% | ALERTA: {alertaCPU}
 RAM: {porcentagemRam}% | ALERTA: {alertaRAM}
 DISCO: {porcentagemDisco}% | ALERTA: {alertaDisco}
 LIMITECPU: {limiteCPU}%
 LIMITERAM: {limiteRAM}%
-LIMITEDISCO: {limiteDisco}%            
+LIMITEDISCO: {limiteDisco}%  
+PROCESSOS TOTAIS: {total_processos}          
 
 Horário: {horas}
 ==============================
