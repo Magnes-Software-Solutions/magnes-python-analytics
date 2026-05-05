@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import mysql.connector
 import boto3
+import json
 
 # Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
 
@@ -14,7 +15,7 @@ last_index_trusted = 0
 
 bucket = "s3-projeto-magnes-2026.04.09"
 caminho_s3 = "trusted/dadosTratados.csv"
-caminho_client = "client/dadosPerfeitos.csv"
+caminho_client = "client/dadosPerfeitos.json"
 
 s3 = boto3.client("s3")
 
@@ -257,10 +258,20 @@ PROCESSOS TOTAIS: {total_processos}
 Horário: {horas}
 ==============================
 """)
+
+    arquivo_json = "dadosPerfeitos.json"
+
+    # Lê o CSV client local e converte para JSON
     
-    # envia arquivo atualizado para client no S3 (sobrescreve)
-    s3.upload_file(arquivo_client, bucket, caminho_client)
-    print("CSV perfeito atualizado no S3 client")
+    df_para_json = pd.read_csv(arquivo_client)
+
+    df_para_json["horario"] = df_para_json["horario"].astype(str)
+
+    with open(arquivo_json, "w", encoding="utf-8") as f:
+        json.dump(df_para_json.to_dict(orient="records"), f, ensure_ascii=False, indent=2)
+
+    s3.upload_file(arquivo_json, bucket, "client/dadosPerfeitos.json")
+    print("JSON atualizado no S3 client")
 
     # atualiza ponteiros
     last_index = len(df)
