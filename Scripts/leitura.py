@@ -1,283 +1,197 @@
-import datetime, time
-import pandas as pd
-import os
-import mysql.connector
-import boto3
+import datetime
+import io
 import json
+import logging
+import os
 
-# Importação das bibliotecas necessárias para a leitura das métricas coletadas do sistema, assim como sua análise.
+import boto3
+import mysql.connector
+import pandas as pd
 
-arquivo = "dadosTratados.csv"
-arquivo_client = "dadosPerfeitos.csv"
 
-last_index = 0
-last_index_trusted = 0
-
-bucket = "s3-projeto-magnes-2026.04.09"
-caminho_s3 = "trusted/dadosTratados.csv"
-caminho_client = "client/dadosPerfeitos.json"
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 s3 = boto3.client("s3")
 
-# Horário de última leitura para evitar processar os mesmos dados repetidamente.
-last_horario = None
+BUCKET = os.environ.get("BUCKET", "s3-projeto-magnes-2026.04.09")
+RAW_KEY = os.environ.get("RAW_KEY", "raw/dadosBrutos.csv")
+TRUSTED_KEY = os.environ.get("TRUSTED_KEY", "trusted/dadosTratados.csv")
+CLIENT_KEY = os.environ.get("CLIENT_KEY", "client/dadosPerfeitos.json")
 
-# conexão MySQL (ajuste)
-conn = mysql.connector.connect(
-    host="localhost",
-    user="magnes",
-    password="Magnes#2026",
-    database="magnes"
-)
 
-cursor = conn.cursor()
+def conectar_mysql():
+    return mysql.connector.connect(
+        host=os.environ["MYSQL_HOST"],
+        user=os.environ["MYSQL_USER"],
+        password=os.environ["MYSQL_PASSWORD"],
+        database=os.environ["MYSQL_DATABASE"],
+    )
 
-while True:
 
-    # lê CSV bruto
-    response = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "raw/dadosBrutos.csv")
-    df = pd.read_csv(response["Body"])
-
-    # pega somente linhas novas
-    novos = df.iloc[last_index:]
-
-    if novos.empty:
-        print("sem novos dados")
-        time.sleep(10)
-        continue
-
-    for _, ultimo in novos.iterrows():
-
-        horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        macAddress = ultimo["macAddress"]
-
-        cursor.execute("""
-            SELECT r.razaoSocial
-            FROM maquina m
-            JOIN redeHospital r
+def buscar_empresa(cursor, mac_address):
+    cursor.execute(
+        """
+        SELECT r.razaoSocial
+        FROM maquina m
+        JOIN redeHospital r
             ON m.fkRedeHospital = r.idRedeHospital
-            WHERE m.macAddress = %s
-            """, (macAddress,))
+        WHERE m.macAddress = %s
+        """,
+        (mac_address,),
+    )
 
-        resultado = cursor.fetchone()
-
-        if resultado:       
-            empresa = resultado[0]
-        else:
-            empresa = None
+    resultado = cursor.fetchone()
+    return resultado[0] if resultado else None
 
 
-        cpuPorcentagem = ultimo["cpuPorcentagem"]
-        cpuNucleosFisicos = ultimo["cpuNucleosFisicos"]
-        cpuNucleosLogicos = ultimo["cpuNucleosLogicos"]
-        total_processos = ultimo["totalProcessos"]
+def buscar_limites(cursor, mac_address):
+    cursor.execute(
+        """
+        SELECT
+            MAX(CASE WHEN c.tipoComponente = 'Processador' THEN cm.limite END) as limiteCPU,
+            MAX(CASE WHEN c.tipoComponente = 'Memória' THEN cm.limite END) as limiteRAM,
+            MAX(CASE WHEN c.tipoComponente = 'Armazenamento' THEN cm.limite END) as limiteDisco
+        FROM componente_maquina cm
+        JOIN componente c
+            ON cm.fkComponente = c.idComponente
+        JOIN maquina m
+            ON cm.fkMaquina = m.idMaquina
+        WHERE m.macAddress = %s
+        """,
+        (mac_address,),
+    )
 
-        cpuTempoUser = round(ultimo["cpuTempoUser"] / 60)
-        cpuTempoSistema = ultimo["cpuTempoSistema"]
-        cpuTempoInativo = ultimo["cpuTempoInativo"]
+    limites = cursor.fetchone()
 
-        ramLivre  = round(ultimo["ramLivre"]  / 1024**3, 2)
-        ramUsada  = round(ultimo["ramUsada"]  / 1024**3, 2)
-        ramTotal  = round(ultimo["ramTotal"]  / 1024**3, 2)
+    if not limites:
+        return None, None, None
 
-        discoLivre = round(ultimo["discoLivre"] / 1024**3, 2)
-        discoUsado = round(ultimo["discoUsado"] / 1024**3, 2)
-        discoTotal = round(ultimo["discoTotal"] / 1024**3, 2)
-
-        porcentagemRam = round((ramUsada / ramTotal) * 100, 2)
-        porcentagemDisco = round((discoUsado / discoTotal) * 100, 2)
+    return limites[0], limites[1], limites[2]
 
 
+def gerar_linha_trusted(cursor, linha):
+    horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    mac_address = linha["macAddress"]
+    empresa = buscar_empresa(cursor, mac_address)
 
-        dados_resultados = {
-            "empresa": [empresa],
-            "macAddress": [macAddress],
-            "horas": [horas],
-            "cpuPorcentagem": [cpuPorcentagem],
-            "cpuNucleosFisicos": [cpuNucleosFisicos],
-            "cpuNucleosLogicos": [cpuNucleosLogicos],
-            "cpuTempoUser": [cpuTempoUser],
-            "cpuTempoSistema": [cpuTempoSistema],
-            "cpuTempoInativo": [cpuTempoInativo],
-            "ramLivre": [ramLivre],
-            "ramUsada": [ramUsada],
-            "ramTotal": [ramTotal],
-            "discoLivre": [discoLivre],
-            "discoUsado": [discoUsado],
-            "discoTotal": [discoTotal],
-            "porcentagemRam": [porcentagemRam],
-            "porcentagemDisco": [porcentagemDisco],
-            "totalProcessos": [total_processos]
+    ram_livre = round(linha["ramLivre"] / 1024**3, 2)
+    ram_usada = round(linha["ramUsada"] / 1024**3, 2)
+    ram_total = round(linha["ramTotal"] / 1024**3, 2)
+
+    disco_livre = round(linha["discoLivre"] / 1024**3, 2)
+    disco_usado = round(linha["discoUsado"] / 1024**3, 2)
+    disco_total = round(linha["discoTotal"] / 1024**3, 2)
+
+    porcentagem_ram = round((ram_usada / ram_total) * 100, 2) if ram_total else 0
+    porcentagem_disco = round((disco_usado / disco_total) * 100, 2) if disco_total else 0
+
+    return {
+        "empresa": empresa,
+        "macAddress": mac_address,
+        "horas": horas,
+        "cpuPorcentagem": linha["cpuPorcentagem"],
+        "cpuNucleosFisicos": linha["cpuNucleosFisicos"],
+        "cpuNucleosLogicos": linha["cpuNucleosLogicos"],
+        "cpuTempoUser": round(linha["cpuTempoUser"] / 60),
+        "cpuTempoSistema": linha["cpuTempoSistema"],
+        "cpuTempoInativo": linha["cpuTempoInativo"],
+        "ramLivre": ram_livre,
+        "ramUsada": ram_usada,
+        "ramTotal": ram_total,
+        "discoLivre": disco_livre,
+        "discoUsado": disco_usado,
+        "discoTotal": disco_total,
+        "porcentagemRam": porcentagem_ram,
+        "porcentagemDisco": porcentagem_disco,
+        "totalProcessos": linha["totalProcessos"],
+    }
+
+
+def gerar_linha_client(cursor, linha):
+    limite_cpu, limite_ram, limite_disco = buscar_limites(cursor, linha["macAddress"])
+
+    alerta_cpu = limite_cpu is not None and linha["cpuPorcentagem"] > limite_cpu
+    alerta_ram = limite_ram is not None and linha["porcentagemRam"] > limite_ram
+    alerta_disco = limite_disco is not None and linha["porcentagemDisco"] > limite_disco
+
+    return {
+        "empresa": linha["empresa"],
+        "macAddress": linha["macAddress"],
+        "horario": str(linha["horas"]),
+        "cpuUso": linha["cpuPorcentagem"],
+        "ramUsoBruto": linha["ramUsada"],
+        "ramUso": linha["porcentagemRam"],
+        "discoUsoBruto": linha["discoUsado"],
+        "discoUso": linha["porcentagemDisco"],
+        "limiteCPU": limite_cpu,
+        "limiteRAM": limite_ram,
+        "limiteDisco": limite_disco,
+        "alertaCPU": alerta_cpu,
+        "alertaRAM": alerta_ram,
+        "alertaDisco": alerta_disco,
+        "totalProcessos": linha["totalProcessos"],
+    }
+
+
+def lambda_handler(event, context):
+    logger.info("Iniciando ETL")
+
+    response = s3.get_object(Bucket=BUCKET, Key=RAW_KEY)
+    df_raw = pd.read_csv(response["Body"])
+
+    if df_raw.empty:
+        logger.info("Arquivo raw vazio")
+        return {"statusCode": 200, "body": "Arquivo raw vazio"}
+
+    conn = conectar_mysql()
+    cursor = conn.cursor()
+
+    try:
+        linhas_trusted = []
+        linhas_client = []
+
+        for _, linha in df_raw.iterrows():
+            linha_trusted = gerar_linha_trusted(cursor, linha)
+            linhas_trusted.append(linha_trusted)
+
+            linha_client = gerar_linha_client(cursor, linha_trusted)
+            linhas_client.append(linha_client)
+
+        df_trusted = pd.DataFrame(linhas_trusted)
+
+        trusted_buffer = io.StringIO()
+        df_trusted.to_csv(trusted_buffer, index=False)
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=TRUSTED_KEY,
+            Body=trusted_buffer.getvalue().encode("utf-8"),
+            ContentType="text/csv",
+        )
+
+        client_json = json.dumps(linhas_client, ensure_ascii=False, indent=2)
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=CLIENT_KEY,
+            Body=client_json.encode("utf-8"),
+            ContentType="application/json",
+        )
+
+        logger.info("ETL finalizada. Linhas processadas: %s", len(df_raw))
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "mensagem": "ETL finalizada com sucesso",
+                    "linhasProcessadas": len(df_raw),
+                    "trusted": TRUSTED_KEY,
+                    "client": CLIENT_KEY,
+                },
+                ensure_ascii=False,
+            ),
         }
 
-        
-    # Cria o arquivo CSV se ele não existir, ou anexa os dados se ele já existir.
-    df_resultados = pd.DataFrame(dados_resultados)
-    if not os.path.exists(arquivo):
-        df_resultados.to_csv(arquivo, index=False)
-    else:
-        df_resultados.to_csv(arquivo, mode="a", header=False, index=False)
-
-
-    # Imprime os dados mais recentes e as médias no console.
-    print(f"""      
-======================================
-EMPRESA: {empresa}          
-MAC: {macAddress} 
-          
-CPU Porcentagem: {cpuPorcentagem}%
-CPU Núcleos Físicos: {cpuNucleosFisicos}
-CPU Núcleos Lógicos: {cpuNucleosLogicos}
-
-CPU Tempo Usuário: {cpuTempoUser}
-CPU Tempo Sistema: {cpuTempoSistema}
-CPU Tempo Inativo: {cpuTempoInativo}
-
-----------------------------------
-
-RAM Usada: {ramUsada} GB
-RAM Total: {ramTotal} GB
-RAM Livre: {ramLivre} GB
-
-----------------------------------
-
-Disco Usado: {discoUsado} GB
-Disco Total: {discoTotal} GB
-Disco Livre: {discoLivre} GB
-
-----------------------------------
-
-Porcentagem RAM Usada: {porcentagemRam}%
-
-Porcentagem Disco Usado: {porcentagemDisco}%
-
-Total de Processos Executados: {total_processos}
-
-Horário: {horas}
-======================================
-""")
-    
-
-    # envia arquivo atualizado para trusted no S3 (sobrescreve)
-    s3.upload_file(arquivo, bucket, caminho_s3)
-    print("CSV tratado atualizado no S3 trusted")
-
-    # lê dadosTratados.CSV do S3 
-    response_trusted = s3.get_object(Bucket="s3-projeto-magnes-2026.04.09", Key = "trusted/dadosTratados.csv")
-    df_trusted = pd.read_csv(response_trusted["Body"], on_bad_lines="skip")
-
-    # pega somente linhas novas do trusted
-    novos_trusted = df_trusted.iloc[last_index_trusted:]
-
-    if not novos_trusted.empty:
-
-        for _, linha in novos_trusted.iterrows():
-
-            empresa = linha["empresa"]
-            macAddress = linha["macAddress"]
-            horas = linha["horas"]
-
-            cpuPorcentagem = linha["cpuPorcentagem"]
-            porcentagemRam = linha["porcentagemRam"]
-            porcentagemDisco = linha["porcentagemDisco"]
-
-            ramUsada = linha["ramUsada"]
-            discoUsado = linha["discoUsado"]
-            total_processos = linha["totalProcessos"]
-
-            cursor.execute("""
-                SELECT 
-                MAX(CASE WHEN c.tipoComponente = 'Processador' THEN cm.limite END) as limiteCPU,
-                MAX(CASE WHEN c.tipoComponente = 'Memória' THEN cm.limite END) as limiteRAM,
-                MAX(CASE WHEN c.tipoComponente = 'Armazenamento' THEN cm.limite END) as limiteDisco
-                FROM componente_maquina cm
-                JOIN componente c ON cm.fkComponente = c.idComponente
-                WHERE cm.fkMaquina = %s
-                """, (macAddress,))
-
-            limites = cursor.fetchone()
-
-            limiteCPU = limites[0] if limites else None
-            limiteRAM = limites[1] if limites else None
-            limiteDisco = limites[2] if limites else None
-
-            alertaCPU = False
-            alertaRAM = False
-            alertaDisco = False
-
-            if cpuPorcentagem > limiteCPU:
-                alertaCPU = True
-
-            if porcentagemRam > limiteRAM:
-                alertaRAM = True
-
-            if porcentagemDisco > limiteDisco:
-                alertaDisco = True
-
-            dados_client = {
-            "empresa": [empresa],
-            "macAddress": [macAddress],
-            "horario": [horas],
-            "cpuUso": [cpuPorcentagem],
-            "ramUsoBruto": [ramUsada],
-            "ramUso": [porcentagemRam],
-            "discoUsoBruto": [discoUsado],
-            "discoUso": [porcentagemDisco],
-            "limiteCPU": [limiteCPU],
-            "limiteRAM": [limiteRAM],
-            "limiteDisco": [limiteDisco],
-            "alertaCPU": [alertaCPU],
-            "alertaRAM": [alertaRAM],
-            "alertaDisco": [alertaDisco],
-            "totalProcessos": [total_processos]
-            }
-    
-            df_client = pd.DataFrame(dados_client)
-
-            if not os.path.exists(arquivo_client):
-                df_client.to_csv(arquivo_client, index=False)
-            else:
-                df_client.to_csv(arquivo_client, mode="a", header=False, index=False)
-
-            print(f"""
-==============================
-EMPRESA: {empresa}
-MAC: {macAddress}
-
-RAM VALOR: {ramUsada}GB
-DISCO VALOR: {discoUsado}GB
-CPU: {cpuPorcentagem}% | ALERTA: {alertaCPU}
-RAM: {porcentagemRam}% | ALERTA: {alertaRAM}
-DISCO: {porcentagemDisco}% | ALERTA: {alertaDisco}
-LIMITECPU: {limiteCPU}%
-LIMITERAM: {limiteRAM}%
-LIMITEDISCO: {limiteDisco}%  
-PROCESSOS TOTAIS: {total_processos}          
-
-Horário: {horas}
-==============================
-""")
-
-    arquivo_json = "dadosPerfeitos.json"
-
-    # Lê o CSV client local e converte para JSON
-    
-    df_para_json = pd.read_csv(arquivo_client)
-
-    df_para_json["horario"] = df_para_json["horario"].astype(str)
-
-    with open(arquivo_json, "w", encoding="utf-8") as f:
-        json.dump(df_para_json.to_dict(orient="records"), f, ensure_ascii=False, indent=2)
-
-    s3.upload_file(arquivo_json, bucket, "client/dadosPerfeitos.json")
-    print("JSON atualizado no S3 client")
-
-    # atualiza ponteiros
-    last_index = len(df)
-    last_index_trusted = len(df_trusted)
-
-    # Espera 10 segundos antes de realizar a próxima leitura.
-    time.sleep(10)
-
-
+    finally:
+        cursor.close()
+        conn.close()
