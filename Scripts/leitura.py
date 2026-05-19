@@ -309,7 +309,7 @@ def gerar_ranking(linhas_client):
     # Aqui termina o ranking
 
     # Aqui comeca o historico (grafico de linha)
-def gerar_historico(linhas_client, limite=20):
+def gerar_historico(linhas_client, limite=1):
     
     grupos = _agrupar_por_mac(linhas_client)
  
