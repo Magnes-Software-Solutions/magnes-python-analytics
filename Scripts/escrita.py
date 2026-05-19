@@ -46,9 +46,9 @@ while True:
     ramUsada = (psutil.virtual_memory().used)
     ramTotal = (psutil.virtual_memory().total)
 
-    discoLivre = (psutil.disk_usage("C:\\").free)
-    discoUsado = (psutil.disk_usage("C:\\").used)
-    discoTotal = (psutil.disk_usage("C:\\").total)
+    discoLivre = (psutil.disk_usage("/").free)
+    discoUsado = (psutil.disk_usage("/").used)
+    discoTotal = (psutil.disk_usage("/").total)
 
     #Imprime as métricas coletadas no terminal.
     print(f"""
@@ -98,9 +98,9 @@ Total Processos: {total_processos}
         df.to_csv(arquivo, mode="a", header=False, index=False)
 
     # envia (sobrescreve) no S3
-    s3.upload_file(arquivo, bucket, caminho_s3)
-
-    print("CSV atualizado no S3")
+    # s3.upload_file(arquivo, bucket, caminho_s3)
+    print("CSV atualizado localmente para teste!")
+    # print("CSV atualizado no S3")
     
     time.sleep(10)
 

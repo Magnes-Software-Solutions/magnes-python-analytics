@@ -50,13 +50,13 @@ def buscar_limites(cursor, mac_address):
         """
         SELECT
             MAX(CASE WHEN c.tipoComponente = 'Processador' THEN cm.limite END) as limiteCPU,
-            MAX(CASE WHEN c.tipoComponente = 'Memória' THEN cm.limite END) as limiteRAM,
+            MAX(CASE WHEN c.tipoComponente = 'Memoria' THEN cm.limite END) as limiteRAM,
             MAX(CASE WHEN c.tipoComponente = 'Armazenamento' THEN cm.limite END) as limiteDisco
         FROM componente_maquina cm
         JOIN componente c
             ON cm.fkComponente = c.idComponente
         JOIN maquina m
-            ON cm.fkMaquina = m.idMaquina
+            ON cm.fkMaquina = m.macAddress
         WHERE m.macAddress = %s
         """,
         (mac_address,),
@@ -133,7 +133,103 @@ def gerar_linha_client(cursor, linha):
         "totalProcessos": linha["totalProcessos"],
     }
 
+# Dashboard Financeira - Individual (Anna)
 
+def buscar_dados_negocio_maquina(cursor, mac_address):
+    cursor.execute(
+        """
+        SELECT
+        m.valorMedioExame, 
+        m.examesPorHora, 
+        m.metaSLA, 
+        m.custoCorretiva,
+        e.bairro,
+        e.cidade,
+        e.numeroEstabelecimento,
+        e.cep
+        FROM maquina m
+        JOIN enderecoHospital e 
+            ON m.fkEnderecoHospital = e.idEnderecoHospital
+        WHERE m.macAddress = %s
+        """,
+        (mac_address,)
+    )
+
+    resultado = cursor.fetchone()
+
+    if resultado:
+        return {
+            "valorExame": float(resultado[0]) if resultado[0] is not None else 0.0,
+            "examesPorHora": resultado[1] if resultado[1] is not None else 0,
+            "metaSLA": float(resultado[2]) if resultado[2] is not None else 100.0,
+            "custoCorretiva": float(resultado[3]) if resultado[3] is not None else 0.0,
+            "bairro": resultado[4],
+            "cidade": resultado[5],
+            "numero": resultado[6],
+            "cep": resultado[7]
+        }
+        
+    return {
+        "valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0, "custoCorretiva": 0.0,
+        "bairro": "Não Cadastrado", "cidade": "Não Cadastrado", "numero": "N/A", "cep": "N/A"
+    }
+
+def gerar_linha_financeira_client(cursor, linha_client_original):
+    mac = linha_client_original["macAddress"]
+    dados_fin = buscar_dados_negocio_maquina(cursor, mac)
+
+    if linha_client_original["cpuUso"] < 2:
+        minutos_downtime = 45 
+    else:
+        minutos_downtime = 0
+        
+    horas_offline = minutos_downtime / 60
+    perda_indisponibilidade = horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"]
+
+    custo_preditiva = 450.00
+    
+    if linha_client_original["alertaCPU"] or linha_client_original["alertaRAM"]:
+        if dados_fin["custoCorretiva"] > 0:
+            lucro_retido = max(dados_fin["custoCorretiva"] - custo_preditiva, 0.0)
+        else:
+            lucro_retido = 0.0
+            
+        perda_por_lentidao = 0.25 * dados_fin["valorExame"] * dados_fin["examesPorHora"]
+        perda_indisponibilidade += perda_por_lentidao
+    else: 
+        lucro_retido = 0.0
+
+    uptime_real = 100 - ((minutos_downtime / 43200) * 100)
+    
+    if linha_client_original["alertaCPU"]:
+        uptime_real -= 2.5
+
+    dados_filtrados_client = {
+        "empresa": linha_client_original["empresa"],
+        "macAddress": mac,
+        "horario": linha_client_original["horario"],
+        "localizacao": {
+            "cidade": dados_fin["cidade"],
+            "bairro": dados_fin["bairro"],
+            "numero": dados_fin["numero"],
+            "cep": dados_fin["cep"]
+        },
+        "alertaCPU": linha_client_original["alertaCPU"],
+        "alertaRAM": linha_client_original["alertaRAM"],
+        "kpiPerdaIndisponibilidade": round(perda_indisponibilidade, 2),
+        "custoCorretivaPotencial": dados_fin["custoCorretiva"],
+        "economiaPreditiva": custo_preditiva,
+        "kpiLucroRetido": round(lucro_retido, 2),
+        "kpiConformidadeSLA": round(max(uptime_real, 0.0), 2),
+        "metaSLA": dados_fin["metaSLA"],
+        "statusSLA": "CONFORME" if uptime_real >= dados_fin["metaSLA"] else "VIOLADO",
+        "confiabilidadeAtivo": round(100 - linha_client_original["cpuUso"], 2)
+    }
+
+    return dados_filtrados_client
+        
+# Finalização - Individual (Anna)
+    
 def lambda_handler(event, context):
     logger.info("Iniciando ETL")
 
@@ -155,8 +251,11 @@ def lambda_handler(event, context):
             linha_trusted = gerar_linha_trusted(cursor, linha)
             linhas_trusted.append(linha_trusted)
 
-            linha_client = gerar_linha_client(cursor, linha_trusted)
-            linhas_client.append(linha_client)
+            linha_base = gerar_linha_client(cursor, linha_trusted)
+
+            linha_enriquecida = gerar_linha_financeira_client(cursor, linha_base)
+
+            linhas_client.append(linha_enriquecida)
 
         df_trusted = pd.DataFrame(linhas_trusted)
 
