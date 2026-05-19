@@ -1,3 +1,4 @@
+
 import datetime
 import io
 import json
@@ -27,22 +28,57 @@ def conectar_mysql():
         password=os.environ["MYSQL_PASSWORD"],
         database=os.environ["MYSQL_DATABASE"],
     )
+def buscar_dados(cursor):
 
+    sql = """
+        SELECT 
+            monitoramento.cpu,
+            monitoramento.ram,
+            monitoramento.disco,
+            monitoramento.dataHora,
+            maquina.tipoModelo AS nome_maquina,
+            maquina.fkRedeHospital
 
-def buscar_empresa(cursor, mac_address):
-    cursor.execute(
-        """
-        SELECT r.razaoSocial
-        FROM maquina m
-        JOIN redeHospital r
-            ON m.fkRedeHospital = r.idRedeHospital
-        WHERE m.macAddress = %s
-        """,
-        (mac_address,),
-    )
+        FROM monitoramento
 
-    resultado = cursor.fetchone()
-    return resultado[0] if resultado else None
+        JOIN maquina
+            ON monitoramento.fkMaquina = maquina.macAddress
+
+        INNER JOIN (
+            
+            SELECT 
+                fkMaquina,
+                MAX(idMonitoramento) AS ultimo
+
+            FROM monitoramento
+
+            GROUP BY fkMaquina
+
+        ) ultimoMonitoramento
+
+            ON monitoramento.idMonitoramento = ultimoMonitoramento.ultimo
+    """
+
+    cursor.execute(sql)
+
+    resultado = cursor.fetchall()
+
+    lista = []
+
+    for linha in resultado:
+
+        lista.append({
+
+            "cpu": linha[0],
+            "ram": linha[1],
+            "disco": linha[2],
+            "dataHora": str(linha[3]),
+            "nome_maquina": linha[4],
+            "fkRedeHospital": linha[5]
+
+        })
+
+    return lista
 
 
 def buscar_limites(cursor, mac_address):
@@ -70,41 +106,80 @@ def buscar_limites(cursor, mac_address):
     return limites[0], limites[1], limites[2]
 
 
-def gerar_linha_trusted(cursor, linha):
-    horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    mac_address = linha["macAddress"]
-    empresa = buscar_empresa(cursor, mac_address)
+# ----------------------------------------------------------
 
-    ram_livre = round(linha["ramLivre"] / 1024**3, 2)
-    ram_usada = round(linha["ramUsada"] / 1024**3, 2)
-    ram_total = round(linha["ramTotal"] / 1024**3, 2)
+def buscar_empresa(cursor, mac_address):
+    cursor.execute(
+        """
+        SELECT r.razaoSocial
+        FROM maquina m
+        JOIN redeHospital r
+            ON m.fkRedeHospital = r.idRedeHospital
+        WHERE m.macAddress = %s
+        """,
+        (mac_address,),
+    )
 
-    disco_livre = round(linha["discoLivre"] / 1024**3, 2)
-    disco_usado = round(linha["discoUsado"] / 1024**3, 2)
-    disco_total = round(linha["discoTotal"] / 1024**3, 2)
+    resultado = cursor.fetchone()
+    return resultado[0] if resultado else None
 
-    porcentagem_ram = round((ram_usada / ram_total) * 100, 2) if ram_total else 0
-    porcentagem_disco = round((disco_usado / disco_total) * 100, 2) if disco_total else 0
+
+
+
+
+def gerar_linha_client(cursor, linha):
+
+    limite_cpu, limite_ram, limite_disco = buscar_limites(
+        cursor,
+        linha["macAddress"]
+    )
+
+    alerta_cpu = (
+        limite_cpu is not None and
+        linha["cpuPorcentagem"] > limite_cpu
+    )
+
+    alerta_ram = (
+        limite_ram is not None and
+        linha["porcentagemRam"] > limite_ram
+    )
+
+    alerta_disco = (
+        limite_disco is not None and
+        linha["porcentagemDisco"] > limite_disco
+    )
 
     return {
-        "empresa": empresa,
-        "macAddress": mac_address,
-        "horas": horas,
-        "cpuPorcentagem": linha["cpuPorcentagem"],
-        "cpuNucleosFisicos": linha["cpuNucleosFisicos"],
-        "cpuNucleosLogicos": linha["cpuNucleosLogicos"],
-        "cpuTempoUser": round(linha["cpuTempoUser"] / 60),
-        "cpuTempoSistema": linha["cpuTempoSistema"],
-        "cpuTempoInativo": linha["cpuTempoInativo"],
-        "ramLivre": ram_livre,
-        "ramUsada": ram_usada,
-        "ramTotal": ram_total,
-        "discoLivre": disco_livre,
-        "discoUsado": disco_usado,
-        "discoTotal": disco_total,
-        "porcentagemRam": porcentagem_ram,
-        "porcentagemDisco": porcentagem_disco,
-        "totalProcessos": linha["totalProcessos"],
+
+        "empresa": linha["empresa"],
+
+        "macAddress": linha["macAddress"],
+
+        "horario": str(linha["horas"]),
+
+        "cpu": linha["cpuPorcentagem"],
+
+        "ram": linha["porcentagemRam"],
+
+        "disco": linha["porcentagemDisco"],
+
+        "ramUsada": linha["ramUsada"],
+
+        "discoUsado": linha["discoUsado"],
+
+        "limiteCPU": limite_cpu,
+
+        "limiteRAM": limite_ram,
+
+        "limiteDisco": limite_disco,
+
+        "alertaCPU": alerta_cpu,
+
+        "alertaRAM": alerta_ram,
+
+        "alertaDisco": alerta_disco,
+
+        "totalProcessos": linha["totalProcessos"]
     }
 
 

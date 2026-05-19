@@ -1,107 +1,252 @@
-import psutil, datetime, time
+import psutil
+import datetime
+import time
 import pandas as pd
 import os
 import boto3
 import uuid
 
 
-# Importação das bibliotecas necessárias para a coleta de métricas do sistema.
+# CONFIGURAÇÕES
 
 
 arquivo = "dadosBrutos.csv"
 
 bucket = "s3-projeto-magnes-2026.04.09"
+
 caminho_s3 = "raw/dadosBrutos.csv"
 
-s3 = boto3.client('s3',
-                  aws_access_key_id = "",
-                  aws_secret_access_key = "",
-                  aws_session_token = ""
-                    )
+# Cliente S3
+s3 = boto3.client(
+    's3',
+    aws_access_key_id="",
+    aws_secret_access_key="",
+    aws_session_token=""
+)
 
-# pega MAC uma vez só
+
+# FUNÇÃO PARA PEGAR O MAC ADDRESS
+
+
 def pegar_mac():
-    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
-                    for ele in range(0,8*6,8)][::-1])
+
+    mac = ':'.join([
+        '{:02x}'.format((uuid.getnode() >> ele) & 0xff)
+        for ele in range(0, 8 * 6, 8)
+    ][::-1])
+
     return mac
 
+# Guarda o MAC da máquina
 mac_address = pegar_mac()
+
 print(f"MAC da máquina: {mac_address}")
 
-# loop infinito para definir e enviar as métricas para um arquivo CSV a cada 10 segundos.
-while True:
-    horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    total_processos = len(psutil.pids())
+# LOOP PRINCIPAL
+
+
+while True:
+
+    # Horário atual
+    horario = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    
+    # CPU
+    
 
     cpuPorcentagem = psutil.cpu_percent()
+
     cpuNucleosFisicos = psutil.cpu_count(logical=False)
+
     cpuNucleosLogicos = psutil.cpu_count()
 
     cpuTempoUser = psutil.cpu_times().user
+
     cpuTempoSistema = psutil.cpu_times().system
+
     cpuTempoInativo = psutil.cpu_times().idle
 
-    ramLivre = (psutil.virtual_memory().available)
-    ramUsada = (psutil.virtual_memory().used)
-    ramTotal = (psutil.virtual_memory().total)
+    
+    # RAM
+    
 
-    discoLivre = (psutil.disk_usage("C:\\").free)
-    discoUsado = (psutil.disk_usage("C:\\").used)
-    discoTotal = (psutil.disk_usage("C:\\").total)
+    memoria = psutil.virtual_memory()
 
-    #Imprime as métricas coletadas no terminal.
+    ramUsada = memoria.used
+
+    ramLivre = memoria.available
+
+    ramTotal = memoria.total
+
+    # Porcentagem da RAM
+    porcentagemRam = memoria.percent
+
+    
+    # DISCO
+    
+
+    disco = psutil.disk_usage("C:\\")
+
+    discoUsado = disco.used
+
+    discoLivre = disco.free
+
+    discoTotal = disco.total
+
+    # Porcentagem do disco
+    porcentagemDisco = disco.percent
+
+    
+    # PROCESSOS
+    
+
+    totalProcessos = len(psutil.pids())
+
+    
+    # MOSTRA NO TERMINAL
+    
+
     print(f"""
-|      
-|    Horário: {horas}
-|    MacAddress: {mac_address},     
 ======================================
- 
-CPU Porcentagem: {cpuPorcentagem}%
-CPU Núcleos Físicos: {cpuNucleosFisicos}
-CPU Núcleos Lógicos: {cpuNucleosLogicos}
 
-CPU Tempo Usuário: {cpuTempoUser}
-CPU Tempo Sistema: {cpuTempoSistema}
-CPU Tempo Inativo: {cpuTempoInativo}
+Horário: {horario}
 
-----------------------------------
+MAC: {mac_address}
 
-RAM Usada: {ramUsada}
-RAM Total: {ramTotal} 
-RAM Livre: {ramLivre}
+--------------------------------------
 
-----------------------------------
+CPU: {cpuPorcentagem}%
 
-Disco Usado: {discoUsado}
-Disco Total: {discoTotal} 
-Disco Livre: {discoLivre}
+RAM: {porcentagemRam}%
 
-----------------------------------
+DISCO: {porcentagemDisco}%
 
-Total Processos: {total_processos}
+--------------------------------------
+
+Processos: {totalProcessos}
 
 ======================================
 """)
-    
-    # Definição dos dados a serem escritos no arquivo CSV.
-    dados = {"macAddress": [mac_address],"horario": [horas], "cpuPorcentagem": [cpuPorcentagem], "cpuNucleosFisicos": [cpuNucleosFisicos], "cpuNucleosLogicos": [cpuNucleosLogicos], "cpuTempoUser": [cpuTempoUser], "cpuTempoSistema": [cpuTempoSistema], "cpuTempoInativo": [cpuTempoInativo], "ramUsada": [ramUsada], "ramTotal": [ramTotal], "ramLivre": [ramLivre], "discoUsado": [discoUsado], "discoTotal": [discoTotal], "discoLivre": [discoLivre], "totalProcessos": [total_processos]}
 
-    #Criação do dataframe usando a biblioteca pandas.
+    
+    # DADOS QUE VÃO PARA O CSV
+    
+
+        # DADOS QUE VÃO PARA O CSV
+    
+
+    dados = {
+
+        # Identificação da máquina
+        "macAddress": [mac_address],
+
+        # Horário da coleta
+        "horario": [horario],
+
+        
+        # CPU
+        
+
+        # Uso da CPU em %
+        "cpuUso": [cpuPorcentagem],
+
+        # Núcleos físicos
+        "cpuNucleosFisicos": [cpuNucleosFisicos],
+
+        # Núcleos lógicos
+        "cpuNucleosLogicos": [cpuNucleosLogicos],
+
+        # Tempo em user
+        "cpuTempoUser": [cpuTempoUser],
+
+        # Tempo em sistema
+        "cpuTempoSistema": [cpuTempoSistema],
+
+        # Tempo ocioso
+        "cpuTempoInativo": [cpuTempoInativo],
+
+
+        
+        # RAM
+        
+
+        # RAM usada em bytes
+        "ramUsoBruto": [ramUsada],
+
+        # RAM livre
+        "ramLivre": [ramLivre],
+
+        # RAM total
+        "ramTotal": [ramTotal],
+
+        # Uso da RAM em %
+        "ramUso": [porcentagemRam],
+
+
+        
+        # DISCO
+        
+
+        # Disco usado em bytes
+        "discoUsoBruto": [discoUsado],
+
+        # Disco livre
+        "discoLivre": [discoLivre],
+
+        # Disco total
+        "discoTotal": [discoTotal],
+
+        # Uso do disco em %
+        "discoUso": [porcentagemDisco],
+
+
+        
+        # PROCESSOS
+        
+
+        "totalProcessos": [totalProcessos]
+    }
+
+    
+    # CRIA DATAFRAME
+    
+
     df = pd.DataFrame(dados)
 
+    
+    # ESCREVE NO CSV
+    
 
-    # Cria o arquivo CSV se ele não existir, ou anexa os dados se ele já existir.
+    # Se o arquivo não existir, cria com cabeçalho
     if not os.path.exists(arquivo):
-        df.to_csv(arquivo, index=False)
-    else:
-        df.to_csv(arquivo, mode="a", header=False, index=False)
 
-    # envia (sobrescreve) no S3
-    s3.upload_file(arquivo, bucket, caminho_s3)
+        df.to_csv(
+            arquivo,
+            index=False
+        )
+
+    # Se existir, adiciona nova linha
+    else:
+
+        df.to_csv(
+            arquivo,
+            mode="a",
+            header=False,
+            index=False
+        )
+
+    
+    # ENVIA PARA O S3
+    
+
+    s3.upload_file(
+        arquivo,
+        bucket,
+        caminho_s3
+    )
 
     print("CSV atualizado no S3")
-    
-    time.sleep(10)
 
-    
+    # Espera 10 segundos
+    time.sleep(10)
