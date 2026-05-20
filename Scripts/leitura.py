@@ -193,26 +193,30 @@ def uso_simulado_da_maquina(cpu_base):
 
 def gerar_linha_financeira_client(cursor, linha_client_original):
 
+    import random
+
     mac = linha_client_original["macAddress"]
     dados_fin = buscar_dados_negocio_maquina(cursor, mac)
 
-    cpu = uso_simulado_da_maquina(linha_client_original["cpuUso"])
-    
+    cpu = uso_simulado_da_maquina(
+        linha_client_original["cpuUso"]
+    )
+
     ram = linha_client_original["ramUso"]
     disco = linha_client_original["discoUso"]
     processos = linha_client_original["totalProcessos"]
 
-    # definição de alertas
+    # alertas
 
     alerta_cpu = cpu >= 75
     alerta_ram = ram >= 70
     alerta_disco = disco >= 90
 
-    # definição do score de risco
+    # score de risco
 
     score_risco = 0
 
-    # cpu
+    # CPU
     if cpu >= 95:
         score_risco += 50
     elif cpu >= 85:
@@ -220,31 +224,30 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
     elif cpu >= 75:
         score_risco += 25
 
-    # ram
+    # RAM
     if ram >= 95:
         score_risco += 35
-
     elif ram >= 85:
         score_risco += 20
-
     elif ram >= 70:
         score_risco += 10
 
-    # disco
+    # DISCO
     if disco >= 95:
         score_risco += 30
-
     elif disco >= 90:
         score_risco += 20
 
-    # processos
+    # PROCESSOS
     if processos >= 700:
         score_risco += 20
-
     elif processos >= 550:
         score_risco += 10
 
-    # Nível de severidade baseada no score de risco
+    # limite máximo
+    score_risco = min(score_risco, 100)
+
+    # severidade
 
     if score_risco >= 70:
         severidade = "CRITICO"
@@ -254,78 +257,74 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
         severidade = "MODERADO"
     else:
         severidade = "NORMAL"
-        
-    # Nível de downtime (minutos)
 
-    if severidade == "CRITICO":
-        minutos_downtime = random.randint(45, 180)
-    elif severidade == "ALTO":
-        minutos_downtime = random.randint(20, 60)
-    elif severidade == "MODERADO":
-        minutos_downtime = random.randint(5, 20)
+    # downtime baseado no risco
+
+    if score_risco == 0:
+        minutos_downtime = random.randint(1, 3)
     else:
-        minutos_downtime = random.randint(1, 4)
+        minutos_downtime = int(score_risco * random.uniform(0.45, 1.25))
+
+    minutos_downtime = max(minutos_downtime, 1)
 
     horas_offline = minutos_downtime / 60
 
-    # Criando o fator de impacto para suavizar a curva financeira nos gráficos
-    if severidade == "NORMAL":
-        fator_impacto = 0.05
-    elif severidade == "MODERADO":
-        fator_impacto = 0.35 
-    elif severidade == "ALTO":
-        fator_impacto = 0.75
-    else:
-        fator_impacto = 1.00
+    # impacto operacional
 
-    perda_indisponibilidade = (horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"] * fator_impacto)
+    exames_perdidos = (dados_fin["examesPorHora"] * horas_offline)
 
-    # Perda causada por lentidão (calculo)
+    perda_indisponibilidade = (exames_perdidos * dados_fin["valorExame"])
 
-    if cpu >= 85 or ram >= 85:
-        perda_lentidao = random.uniform(1200, 3000)
-    elif cpu >= 70 or ram >= 70:
-        perda_lentidao = random.uniform(600, 1500)
-    elif cpu >= 55 or ram >= 55:
-        perda_lentidao = random.uniform(200, 700)
-    else:
-        perda_lentidao = random.uniform(35, 120)
+    # impacto da lentidão e a sua perda
 
-    # Perda total = perda de downtime + perda causada pela lentidão
+    impacto_lentidao = (((cpu * 0.65) + (ram * 0.35)) / 100)
+
+    perda_lentidao = (dados_fin["valorExame"] * dados_fin["examesPorHora"] * impacto_lentidao * horas_offline * 0.45)
+
+    # perda total
 
     perda_total = (perda_indisponibilidade + perda_lentidao)
 
-    # Parte da manutenção preditiva
+    # manutenção preditiva
 
-    custo_preditiva = random.uniform(600, 1800)
+    custo_preditiva = random.uniform(700, 1800)
+    fator_risco = score_risco / 100
 
-    economia_preditiva = max(dados_fin["custoCorretiva"] - custo_preditiva, 0)
+    custo_potencial_falha = (dados_fin["custoCorretiva"] * fator_risco)
 
-    lucro_retido = economia_preditiva * 0.35
+    valor_evitado = max(custo_potencial_falha - custo_preditiva, 0)
+    perda_residual = max(perda_total - valor_evitado, 0)
 
-    # SLA conformidade e uptime real
+    # lucro preservado
+
+    margem_operacional = 0.38
+
+    lucro_preservado = (valor_evitado * margem_operacional)
+
+    # SLA 
 
     uptime_real = 100 - ((minutos_downtime / 43200) * 100)
 
-    if severidade == "CRITICO":
-        uptime_real -= random.uniform(1.5, 4)
+    # penalização adicional conforme severidade
 
+    if severidade == "CRITICO":
+        uptime_real -= random.uniform(2.0, 4.5)
     elif severidade == "ALTO":
-        uptime_real -= random.uniform(0.5, 2)
+        uptime_real -= random.uniform(0.7, 2.0)
+    elif severidade == "MODERADO":
+        uptime_real -= random.uniform(0.1, 0.8)
 
     uptime_real = max(uptime_real, 0)
-
-    status_sla = (
-        "CONFORME"
+    status_sla = ("CONFORME"
         if uptime_real >= dados_fin["metaSLA"]
         else "VIOLADO"
     )
 
-    # Nivel de confiabilidade
+    # saude operacional da máquina
 
-    confiabilidade = round(max(100 - ((cpu * 0.35) + (ram * 0.20) + (disco * 0.10)), 0), 2)
+    saude_operacional = round(max(100 - ((cpu * 0.30) + (ram * 0.20) + (disco * 0.10)), 0), 2)
 
-    # Retorno do .json
+    # return do json tratado
 
     return {
         "macAddress": mac,
@@ -333,24 +332,25 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
         "indicadores": {
             "scoreRisco": score_risco,
             "severidade": severidade,
-            "confiabilidade": confiabilidade
+            "saudeOperacional": saude_operacional
         },
 
         "financeiro": {
             "downtimeMinutos": minutos_downtime,
             "perdaIndisponibilidade": round(perda_indisponibilidade, 2),
-            "perdaLentidao": round(perda_lentidao, 2),
+            "perdaLentidao": round(perda_lentidao,2),
             "perdaTotal": round(perda_total, 2),
-            "economiaPreditiva": round(economia_preditiva, 2),
-            "lucroRetido": round(lucro_retido, 2)
+            "custoPotencialFalha": round(custo_potencial_falha, 2),
+            "custoPreditiva": round(custo_preditiva, 2),
+            "valorEvitado": round(valor_evitado, 2),
+            "perdaResidual": round(perda_residual, 2),
+            "lucroPreservado": round(lucro_preservado, 2)
         },
-
         "alertas": {
             "cpu": alerta_cpu,
             "ram": alerta_ram,
             "disco": alerta_disco
         },
-
         "sla": {
             "conformidade": round(uptime_real, 2),
             "meta": dados_fin["metaSLA"],
