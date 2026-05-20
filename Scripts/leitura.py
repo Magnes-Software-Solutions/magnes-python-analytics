@@ -214,13 +214,11 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
 
     # cpu
     if cpu >= 95:
-        score_risco += 45
-
+        score_risco += 50
     elif cpu >= 85:
-        score_risco += 30
-
+        score_risco += 35
     elif cpu >= 75:
-        score_risco += 15
+        score_risco += 25
 
     # ram
     if ram >= 95:
@@ -250,13 +248,10 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
 
     if score_risco >= 70:
         severidade = "CRITICO"
-
     elif score_risco >= 40:
         severidade = "ALTO"
-
-    elif score_risco >= 20:
+    elif score_risco >= 15:
         severidade = "MODERADO"
-
     else:
         severidade = "NORMAL"
         
@@ -273,7 +268,17 @@ def gerar_linha_financeira_client(cursor, linha_client_original):
 
     horas_offline = minutos_downtime / 60
 
-    perda_indisponibilidade = (horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"])
+    # Criando o fator de impacto para suavizar a curva financeira nos gráficos
+    if severidade == "NORMAL":
+        fator_impacto = 0.05
+    elif severidade == "MODERADO":
+        fator_impacto = 0.35 
+    elif severidade == "ALTO":
+        fator_impacto = 0.75
+    else:
+        fator_impacto = 1.00
+
+    perda_indisponibilidade = (horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"] * fator_impacto)
 
     # Perda causada por lentidão (calculo)
 

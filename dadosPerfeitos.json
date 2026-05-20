@@ -1,0 +1,245 @@
+[
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "confiabilidade": 54.14
+    },
+    "financeiro": {
+      "downtimeMinutos": 50,
+      "perdaIndisponibilidade": 2250.0,
+      "perdaLentidao": 2914.6,
+      "perdaTotal": 5164.6,
+      "economiaPreditiva": 7704.04,
+      "lucroRetido": 2696.41
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 98.49,
+      "meta": 98.5,
+      "status": "VIOLADO"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 0,
+      "severidade": "NORMAL",
+      "confiabilidade": 78.59
+    },
+    "financeiro": {
+      "downtimeMinutos": 2,
+      "perdaIndisponibilidade": 6.0,
+      "perdaLentidao": 41.01,
+      "perdaTotal": 47.01,
+      "economiaPreditiva": 6787.59,
+      "lucroRetido": 2375.66
+    },
+    "alertas": {
+      "cpu": false,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 100.0,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "confiabilidade": 54.34
+    },
+    "financeiro": {
+      "downtimeMinutos": 29,
+      "perdaIndisponibilidade": 1305.0,
+      "perdaLentidao": 2070.73,
+      "perdaTotal": 3375.73,
+      "economiaPreditiva": 6916.75,
+      "lucroRetido": 2420.86
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 98.62,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "confiabilidade": 54.57
+    },
+    "financeiro": {
+      "downtimeMinutos": 32,
+      "perdaIndisponibilidade": 1440.0,
+      "perdaLentidao": 2924.9,
+      "perdaTotal": 4364.9,
+      "economiaPreditiva": 6765.02,
+      "lucroRetido": 2367.76
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 99.31,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 35,
+      "severidade": "MODERADO",
+      "confiabilidade": 56.34
+    },
+    "financeiro": {
+      "downtimeMinutos": 12,
+      "perdaIndisponibilidade": 252.0,
+      "perdaLentidao": 2973.78,
+      "perdaTotal": 3225.78,
+      "economiaPreditiva": 7556.27,
+      "lucroRetido": 2644.69
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 99.97,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 0,
+      "severidade": "NORMAL",
+      "confiabilidade": 70.7
+    },
+    "financeiro": {
+      "downtimeMinutos": 3,
+      "perdaIndisponibilidade": 9.0,
+      "perdaLentidao": 37.84,
+      "perdaTotal": 46.84,
+      "economiaPreditiva": 7224.32,
+      "lucroRetido": 2528.51
+    },
+    "alertas": {
+      "cpu": false,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 99.99,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "confiabilidade": 54.09
+    },
+    "financeiro": {
+      "downtimeMinutos": 22,
+      "perdaIndisponibilidade": 990.0,
+      "perdaLentidao": 1850.16,
+      "perdaTotal": 2840.16,
+      "economiaPreditiva": 7340.69,
+      "lucroRetido": 2569.24
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 98.0,
+      "meta": 98.5,
+      "status": "VIOLADO"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 0,
+      "severidade": "NORMAL",
+      "confiabilidade": 72.4
+    },
+    "financeiro": {
+      "downtimeMinutos": 3,
+      "perdaIndisponibilidade": 9.0,
+      "perdaLentidao": 47.01,
+      "perdaTotal": 56.01,
+      "economiaPreditiva": 6966.6,
+      "lucroRetido": 2438.31
+    },
+    "alertas": {
+      "cpu": false,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 99.99,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 01:16:13",
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "confiabilidade": 54.16
+    },
+    "financeiro": {
+      "downtimeMinutos": 36,
+      "perdaIndisponibilidade": 1620.0,
+      "perdaLentidao": 2905.07,
+      "perdaTotal": 4525.07,
+      "economiaPreditiva": 7095.46,
+      "lucroRetido": 2483.41
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 98.82,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  }
+]
