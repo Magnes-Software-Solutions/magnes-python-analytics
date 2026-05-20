@@ -1,51 +1,29 @@
 [
   {
     "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
-    "indicadores": {
-      "scoreRisco": 50,
-      "severidade": "ALTO",
-      "saudeOperacional": 59.14
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 35.6,
+      "cpuSimulado": 40.62,
+      "ramUso": 51.0,
+      "discoUso": 6.11,
+      "totalProcessos": 438
     },
-    "financeiro": {
-      "downtimeMinutos": 48,
-      "perdaIndisponibilidade": 2880.0,
-      "perdaLentidao": 1074.87,
-      "perdaTotal": 3954.87,
-      "custoPotencialFalha": 4250.0,
-      "custoPreditiva": 985.16,
-      "valorEvitado": 3264.84,
-      "perdaResidual": 690.03,
-      "lucroPreservado": 1240.64
-    },
-    "alertas": {
-      "cpu": true,
-      "ram": false,
-      "disco": false
-    },
-    "sla": {
-      "conformidade": 98.49,
-      "meta": 98.5,
-      "status": "VIOLADO"
-    }
-  },
-  {
-    "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
     "indicadores": {
       "scoreRisco": 0,
       "severidade": "NORMAL",
-      "saudeOperacional": 78.64
+      "saudeOperacional": 77.0
     },
     "financeiro": {
       "downtimeMinutos": 1,
       "perdaIndisponibilidade": 60.0,
-      "perdaLentidao": 11.02,
-      "perdaTotal": 71.02,
+      "perdaLentidao": 11.95,
+      "perdaTotal": 71.95,
+      "multaSLA": 0,
       "custoPotencialFalha": 0.0,
-      "custoPreditiva": 773.89,
+      "custoPreditiva": 797.67,
       "valorEvitado": 0,
-      "perdaResidual": 71.02,
+      "perdaResidual": 71.95,
       "lucroPreservado": 0.0
     },
     "alertas": {
@@ -61,22 +39,30 @@
   },
   {
     "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 21.7,
+      "cpuSimulado": 91.92,
+      "ramUso": 49.88,
+      "discoUso": 6.11,
+      "totalProcessos": 438
+    },
     "indicadores": {
-      "scoreRisco": 50,
-      "severidade": "ALTO",
-      "saudeOperacional": 59.34
+      "scoreRisco": 35,
+      "severidade": "MODERADO",
+      "saudeOperacional": 61.84
     },
     "financeiro": {
-      "downtimeMinutos": 37,
-      "perdaIndisponibilidade": 2220.0,
-      "perdaLentidao": 825.05,
-      "perdaTotal": 3045.05,
-      "custoPotencialFalha": 4250.0,
-      "custoPreditiva": 831.29,
-      "valorEvitado": 3418.71,
-      "perdaResidual": 0,
-      "lucroPreservado": 1299.11
+      "downtimeMinutos": 36,
+      "perdaIndisponibilidade": 2160.0,
+      "perdaLentidao": 750.44,
+      "perdaTotal": 2910.44,
+      "multaSLA": 0,
+      "custoPotencialFalha": 2975.0,
+      "custoPreditiva": 797.02,
+      "valorEvitado": 2177.98,
+      "perdaResidual": 732.46,
+      "lucroPreservado": 827.63
     },
     "alertas": {
       "cpu": true,
@@ -84,28 +70,112 @@
       "disco": false
     },
     "sla": {
-      "conformidade": 97.92,
+      "conformidade": 99.52,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 16.7,
+      "cpuSimulado": 100.0,
+      "ramUso": 50.0,
+      "discoUso": 6.11,
+      "totalProcessos": 437
+    },
+    "indicadores": {
+      "scoreRisco": 50,
+      "severidade": "ALTO",
+      "saudeOperacional": 59.39
+    },
+    "financeiro": {
+      "downtimeMinutos": 25,
+      "perdaIndisponibilidade": 1500.0,
+      "perdaLentidao": 556.88,
+      "perdaTotal": 2056.88,
+      "multaSLA": 2469.37,
+      "custoPotencialFalha": 5484.69,
+      "custoPreditiva": 1288.09,
+      "valorEvitado": 4196.59,
+      "perdaResidual": 0,
+      "lucroPreservado": 1594.71
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 98.23,
       "meta": 98.5,
       "status": "VIOLADO"
     }
   },
   {
     "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 14.8,
+      "cpuSimulado": 87.51,
+      "ramUso": 49.75,
+      "discoUso": 6.11,
+      "totalProcessos": 437
+    },
+    "indicadores": {
+      "scoreRisco": 35,
+      "severidade": "MODERADO",
+      "saudeOperacional": 63.19
+    },
+    "financeiro": {
+      "downtimeMinutos": 28,
+      "perdaIndisponibilidade": 1680.0,
+      "perdaLentidao": 561.66,
+      "perdaTotal": 2241.66,
+      "multaSLA": 0,
+      "custoPotencialFalha": 2975.0,
+      "custoPreditiva": 1646.55,
+      "valorEvitado": 1328.45,
+      "perdaResidual": 913.22,
+      "lucroPreservado": 504.81
+    },
+    "alertas": {
+      "cpu": true,
+      "ram": false,
+      "disco": false
+    },
+    "sla": {
+      "conformidade": 99.18,
+      "meta": 98.5,
+      "status": "CONFORME"
+    }
+  },
+  {
+    "macAddress": "80:e6:50:04:fd:58",
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 15.9,
+      "cpuSimulado": 34.85,
+      "ramUso": 49.88,
+      "discoUso": 6.11,
+      "totalProcessos": 436
+    },
     "indicadores": {
       "scoreRisco": 0,
       "severidade": "NORMAL",
-      "saudeOperacional": 85.09
+      "saudeOperacional": 78.96
     },
     "financeiro": {
       "downtimeMinutos": 1,
       "perdaIndisponibilidade": 60.0,
-      "perdaLentidao": 7.26,
-      "perdaTotal": 67.26,
+      "perdaLentidao": 10.83,
+      "perdaTotal": 70.83,
+      "multaSLA": 0,
       "custoPotencialFalha": 0.0,
-      "custoPreditiva": 1003.59,
+      "custoPreditiva": 1624.57,
       "valorEvitado": 0,
-      "perdaResidual": 67.26,
+      "perdaResidual": 70.83,
       "lucroPreservado": 0.0
     },
     "alertas": {
@@ -121,82 +191,30 @@
   },
   {
     "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
-    "indicadores": {
-      "scoreRisco": 0,
-      "severidade": "NORMAL",
-      "saudeOperacional": 82.33
+    "horario": "2026-05-20 20:12:46",
+    "metricas": {
+      "cpuOriginal": 22.7,
+      "cpuSimulado": 100.0,
+      "ramUso": 50.0,
+      "discoUso": 6.11,
+      "totalProcessos": 437
     },
-    "financeiro": {
-      "downtimeMinutos": 2,
-      "perdaIndisponibilidade": 120.0,
-      "perdaLentidao": 17.74,
-      "perdaTotal": 137.74,
-      "custoPotencialFalha": 0.0,
-      "custoPreditiva": 1309.93,
-      "valorEvitado": 0,
-      "perdaResidual": 137.74,
-      "lucroPreservado": 0.0
-    },
-    "alertas": {
-      "cpu": false,
-      "ram": false,
-      "disco": false
-    },
-    "sla": {
-      "conformidade": 100.0,
-      "meta": 98.5,
-      "status": "CONFORME"
-    }
-  },
-  {
-    "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
-    "indicadores": {
-      "scoreRisco": 0,
-      "severidade": "NORMAL",
-      "saudeOperacional": 83.21
-    },
-    "financeiro": {
-      "downtimeMinutos": 2,
-      "perdaIndisponibilidade": 120.0,
-      "perdaLentidao": 16.68,
-      "perdaTotal": 136.68,
-      "custoPotencialFalha": 0.0,
-      "custoPreditiva": 747.59,
-      "valorEvitado": 0,
-      "perdaResidual": 136.68,
-      "lucroPreservado": 0.0
-    },
-    "alertas": {
-      "cpu": false,
-      "ram": false,
-      "disco": false
-    },
-    "sla": {
-      "conformidade": 100.0,
-      "meta": 98.5,
-      "status": "CONFORME"
-    }
-  },
-  {
-    "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
     "indicadores": {
       "scoreRisco": 50,
       "severidade": "ALTO",
-      "saudeOperacional": 59.09
+      "saudeOperacional": 59.39
     },
     "financeiro": {
-      "downtimeMinutos": 34,
-      "perdaIndisponibilidade": 2040.0,
-      "perdaLentidao": 762.17,
-      "perdaTotal": 2802.17,
+      "downtimeMinutos": 23,
+      "perdaIndisponibilidade": 1380.0,
+      "perdaLentidao": 512.33,
+      "perdaTotal": 1892.33,
+      "multaSLA": 0,
       "custoPotencialFalha": 4250.0,
-      "custoPreditiva": 1145.61,
-      "valorEvitado": 3104.39,
+      "custoPreditiva": 1159.65,
+      "valorEvitado": 3090.35,
       "perdaResidual": 0,
-      "lucroPreservado": 1179.67
+      "lucroPreservado": 1174.33
     },
     "alertas": {
       "cpu": true,
@@ -204,69 +222,9 @@
       "disco": false
     },
     "sla": {
-      "conformidade": 98.85,
+      "conformidade": 99.02,
       "meta": 98.5,
       "status": "CONFORME"
-    }
-  },
-  {
-    "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
-    "indicadores": {
-      "scoreRisco": 50,
-      "severidade": "ALTO",
-      "saudeOperacional": 59.29
-    },
-    "financeiro": {
-      "downtimeMinutos": 48,
-      "perdaIndisponibilidade": 2880.0,
-      "perdaLentidao": 1071.47,
-      "perdaTotal": 3951.47,
-      "custoPotencialFalha": 4250.0,
-      "custoPreditiva": 1559.92,
-      "valorEvitado": 2690.08,
-      "perdaResidual": 1261.39,
-      "lucroPreservado": 1022.23
-    },
-    "alertas": {
-      "cpu": true,
-      "ram": false,
-      "disco": false
-    },
-    "sla": {
-      "conformidade": 98.46,
-      "meta": 98.5,
-      "status": "VIOLADO"
-    }
-  },
-  {
-    "macAddress": "80:e6:50:04:fd:58",
-    "horario": "2026-05-20 12:57:22",
-    "indicadores": {
-      "scoreRisco": 50,
-      "severidade": "ALTO",
-      "saudeOperacional": 59.16
-    },
-    "financeiro": {
-      "downtimeMinutos": 30,
-      "perdaIndisponibilidade": 1800.0,
-      "perdaLentidao": 671.43,
-      "perdaTotal": 2471.43,
-      "custoPotencialFalha": 4250.0,
-      "custoPreditiva": 1754.07,
-      "valorEvitado": 2495.93,
-      "perdaResidual": 0,
-      "lucroPreservado": 948.45
-    },
-    "alertas": {
-      "cpu": true,
-      "ram": false,
-      "disco": false
-    },
-    "sla": {
-      "conformidade": 98.3,
-      "meta": 98.5,
-      "status": "VIOLADO"
     }
   }
 ]
