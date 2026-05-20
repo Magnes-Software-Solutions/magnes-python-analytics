@@ -9,7 +9,7 @@ import leitura
 
 os.environ["MYSQL_HOST"] = "127.0.0.1"
 os.environ["MYSQL_USER"] = "root"
-os.environ["MYSQL_PASSWORD"] = "senha"
+os.environ["MYSQL_PASSWORD"] = "Corinthians"
 os.environ["MYSQL_DATABASE"] = "magnes"
 
 class LocalS3Mock:

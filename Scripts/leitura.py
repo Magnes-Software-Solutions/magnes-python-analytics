@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import random
 
 import boto3
 import mysql.connector
@@ -139,16 +140,16 @@ def buscar_dados_negocio_maquina(cursor, mac_address):
     cursor.execute(
         """
         SELECT
-        m.valorMedioExame, 
-        m.examesPorHora, 
-        m.metaSLA, 
-        m.custoCorretiva,
-        e.bairro,
-        e.cidade,
-        e.numeroEstabelecimento,
-        e.cep
+            m.valorMedioExame,
+            m.examesPorHora,
+            m.metaSLA,
+            m.custoCorretiva,
+            e.bairro,
+            e.cidade,
+            e.numeroEstabelecimento,
+            e.cep
         FROM maquina m
-        JOIN enderecoHospital e 
+        JOIN enderecoHospital e
             ON m.fkEnderecoHospital = e.idEnderecoHospital
         WHERE m.macAddress = %s
         """,
@@ -159,75 +160,199 @@ def buscar_dados_negocio_maquina(cursor, mac_address):
 
     if resultado:
         return {
-            "valorExame": float(resultado[0]) if resultado[0] is not None else 0.0,
-            "examesPorHora": resultado[1] if resultado[1] is not None else 0,
-            "metaSLA": float(resultado[2]) if resultado[2] is not None else 100.0,
-            "custoCorretiva": float(resultado[3]) if resultado[3] is not None else 0.0,
-            "bairro": resultado[4],
-            "cidade": resultado[5],
-            "numero": resultado[6],
-            "cep": resultado[7]
+            "valorExame": float(resultado[0] or 0),
+            "examesPorHora": int(resultado[1] or 0),
+            "metaSLA": float(resultado[2] or 100),
+            "custoCorretiva": float(resultado[3] or 0),
+
+            "bairro": resultado[4] or "Não Cadastrado",
+            "cidade": resultado[5] or "Não Cadastrado",
+            "numero": resultado[6] or "N/A",
+            "cep": resultado[7] or "N/A"
         }
-        
+
     return {
-        "valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0, "custoCorretiva": 0.0,
-        "bairro": "Não Cadastrado", "cidade": "Não Cadastrado", "numero": "N/A", "cep": "N/A"
+        "valorExame": 0.0,
+        "examesPorHora": 0,
+        "metaSLA": 100.0,
+        "custoCorretiva": 0.0,
+
+        "bairro": "Não Cadastrado",
+        "cidade": "Não Cadastrado",
+        "numero": "N/A",
+        "cep": "N/A"
     }
 
+def uso_simulado_da_maquina(cpu_base):
+    cpu_ajustada = cpu_base + random.uniform(5.0, 18.0)
+    
+    if random.random() < 0.40:
+        return min(cpu_ajustada * 4.5, 100.0)
+    
+    return min(cpu_ajustada, 100.0)
+
 def gerar_linha_financeira_client(cursor, linha_client_original):
+
     mac = linha_client_original["macAddress"]
     dados_fin = buscar_dados_negocio_maquina(cursor, mac)
 
-    if linha_client_original["cpuUso"] < 2:
-        minutos_downtime = 45 
-    else:
-        minutos_downtime = 0
-        
-    horas_offline = minutos_downtime / 60
-    perda_indisponibilidade = horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"]
-
-    custo_preditiva = 450.00
+    cpu = uso_simulado_da_maquina(linha_client_original["cpuUso"])
     
-    if linha_client_original["alertaCPU"] or linha_client_original["alertaRAM"]:
-        if dados_fin["custoCorretiva"] > 0:
-            lucro_retido = max(dados_fin["custoCorretiva"] - custo_preditiva, 0.0)
-        else:
-            lucro_retido = 0.0
-            
-        perda_por_lentidao = 0.25 * dados_fin["valorExame"] * dados_fin["examesPorHora"]
-        perda_indisponibilidade += perda_por_lentidao
-    else: 
-        lucro_retido = 0.0
+    ram = linha_client_original["ramUso"]
+    disco = linha_client_original["discoUso"]
+    processos = linha_client_original["totalProcessos"]
+
+    # definição de alertas
+
+    alerta_cpu = cpu >= 75
+    alerta_ram = ram >= 70
+    alerta_disco = disco >= 90
+
+    # definição do score de risco
+
+    score_risco = 0
+
+    # cpu
+    if cpu >= 95:
+        score_risco += 45
+
+    elif cpu >= 85:
+        score_risco += 30
+
+    elif cpu >= 75:
+        score_risco += 15
+
+    # ram
+    if ram >= 95:
+        score_risco += 35
+
+    elif ram >= 85:
+        score_risco += 20
+
+    elif ram >= 70:
+        score_risco += 10
+
+    # disco
+    if disco >= 95:
+        score_risco += 30
+
+    elif disco >= 90:
+        score_risco += 20
+
+    # processos
+    if processos >= 700:
+        score_risco += 20
+
+    elif processos >= 550:
+        score_risco += 10
+
+    # Nível de severidade baseada no score de risco
+
+    if score_risco >= 70:
+        severidade = "CRITICO"
+
+    elif score_risco >= 40:
+        severidade = "ALTO"
+
+    elif score_risco >= 20:
+        severidade = "MODERADO"
+
+    else:
+        severidade = "NORMAL"
+        
+    # Nível de downtime (minutos)
+
+    if severidade == "CRITICO":
+        minutos_downtime = random.randint(45, 180)
+    elif severidade == "ALTO":
+        minutos_downtime = random.randint(20, 60)
+    elif severidade == "MODERADO":
+        minutos_downtime = random.randint(5, 20)
+    else:
+        minutos_downtime = random.randint(1, 4)
+
+    horas_offline = minutos_downtime / 60
+
+    perda_indisponibilidade = (horas_offline * dados_fin["valorExame"] * dados_fin["examesPorHora"])
+
+    # Perda causada por lentidão (calculo)
+
+    if cpu >= 85 or ram >= 85:
+        perda_lentidao = random.uniform(1200, 3000)
+    elif cpu >= 70 or ram >= 70:
+        perda_lentidao = random.uniform(600, 1500)
+    elif cpu >= 55 or ram >= 55:
+        perda_lentidao = random.uniform(200, 700)
+    else:
+        perda_lentidao = random.uniform(35, 120)
+
+    # Perda total = perda de downtime + perda causada pela lentidão
+
+    perda_total = (perda_indisponibilidade + perda_lentidao)
+
+    # Parte da manutenção preditiva
+
+    custo_preditiva = random.uniform(600, 1800)
+
+    economia_preditiva = max(dados_fin["custoCorretiva"] - custo_preditiva, 0)
+
+    lucro_retido = economia_preditiva * 0.35
+
+    # SLA conformidade e uptime real
 
     uptime_real = 100 - ((minutos_downtime / 43200) * 100)
-    
-    if linha_client_original["alertaCPU"]:
-        uptime_real -= 2.5
 
-    dados_filtrados_client = {
-        "empresa": linha_client_original["empresa"],
+    if severidade == "CRITICO":
+        uptime_real -= random.uniform(1.5, 4)
+
+    elif severidade == "ALTO":
+        uptime_real -= random.uniform(0.5, 2)
+
+    uptime_real = max(uptime_real, 0)
+
+    status_sla = (
+        "CONFORME"
+        if uptime_real >= dados_fin["metaSLA"]
+        else "VIOLADO"
+    )
+
+    # Nivel de confiabilidade
+
+    confiabilidade = round(max(100 - ((cpu * 0.35) + (ram * 0.20) + (disco * 0.10)), 0), 2)
+
+    # Retorno do .json
+
+    return {
         "macAddress": mac,
         "horario": linha_client_original["horario"],
-        "localizacao": {
-            "cidade": dados_fin["cidade"],
-            "bairro": dados_fin["bairro"],
-            "numero": dados_fin["numero"],
-            "cep": dados_fin["cep"]
+        "indicadores": {
+            "scoreRisco": score_risco,
+            "severidade": severidade,
+            "confiabilidade": confiabilidade
         },
-        "alertaCPU": linha_client_original["alertaCPU"],
-        "alertaRAM": linha_client_original["alertaRAM"],
-        "kpiPerdaIndisponibilidade": round(perda_indisponibilidade, 2),
-        "custoCorretivaPotencial": dados_fin["custoCorretiva"],
-        "economiaPreditiva": custo_preditiva,
-        "kpiLucroRetido": round(lucro_retido, 2),
-        "kpiConformidadeSLA": round(max(uptime_real, 0.0), 2),
-        "metaSLA": dados_fin["metaSLA"],
-        "statusSLA": "CONFORME" if uptime_real >= dados_fin["metaSLA"] else "VIOLADO",
-        "confiabilidadeAtivo": round(100 - linha_client_original["cpuUso"], 2)
+
+        "financeiro": {
+            "downtimeMinutos": minutos_downtime,
+            "perdaIndisponibilidade": round(perda_indisponibilidade, 2),
+            "perdaLentidao": round(perda_lentidao, 2),
+            "perdaTotal": round(perda_total, 2),
+            "economiaPreditiva": round(economia_preditiva, 2),
+            "lucroRetido": round(lucro_retido, 2)
+        },
+
+        "alertas": {
+            "cpu": alerta_cpu,
+            "ram": alerta_ram,
+            "disco": alerta_disco
+        },
+
+        "sla": {
+            "conformidade": round(uptime_real, 2),
+            "meta": dados_fin["metaSLA"],
+            "status": status_sla
+        }
     }
 
-    return dados_filtrados_client
-        
 # Finalização - Individual (Anna)
     
 def lambda_handler(event, context):
