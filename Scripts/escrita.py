@@ -10,14 +10,14 @@ import uuid
 
 arquivo = "dadosBrutos.csv"
 
-bucket = "s3-projeto-magnes-2026.04.09"
+bucket = "magnes-solutions"
 caminho_s3 = "raw/dadosBrutos.csv"
 
 s3 = boto3.client('s3',
                   aws_access_key_id = "",
                   aws_secret_access_key = "",
                   aws_session_token = ""
-                    )
+                )
 
 # pega MAC uma vez só
 def pegar_mac():

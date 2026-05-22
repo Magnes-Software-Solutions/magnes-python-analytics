@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 s3 = boto3.client("s3")
 
-BUCKET = os.environ.get("BUCKET", "s3-projeto-magnes-2026.04.09")
+BUCKET = os.environ.get("BUCKET", "magnes-solutions")
 RAW_KEY = os.environ.get("RAW_KEY", "raw/dadosBrutos.csv")
 TRUSTED_KEY = os.environ.get("TRUSTED_KEY", "trusted/dadosTratados.csv")
 CLIENT_KEY = os.environ.get("CLIENT_KEY", "client/dadosPerfeitos.json")
@@ -46,18 +46,52 @@ def regressaoLinear(ultimas2hMaquina, componente):
     x = df["x"].values
     y = df[componente].values
 
-    a, b = np.polyfit(x, y, 1)
-    a, b = float(a), float(b)
+    mascara_valida = (np.isfinite(x) & np.isfinite(y))
+    x = x[mascara_valida]
+    y = y[mascara_valida]
+
+    if len(x) < 2:
+        return {"a": 0, "b": 0, "reta": [], "previsao100": "Sem dados válidos"}
+    
+    if np.all(x == x[0]):
+        return {"a": 0, "b": round(float(np.mean(y)), 2), "reta": [], "previsao100": "Sem variação temporal"}
+
+    try:
+        a, b = np.polyfit(x, y, 1)
+        a, b = float(a), float(b)
+
+        yPrevisto = a * x + b
+        ss_res = np.sum((y - yPrevisto) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+
+        if ss_tot == 0:
+            r2 = 0
+        else:
+            r2 = 1 - (ss_res / ss_tot)
+
+        r2 = float(r2)
+
+    except Exception as erro:
+        logger.warning("Erro regressao linear: %s", erro)
+
+        return {
+            "a": 0,
+            "b": 0,
+            "r2": 0,
+            "reta": [],
+            "previsao100": "Erro regressão"
+        }
 
     previsao100 = "Sem previsão"
-    if abs(a) > 0.0001 and a > 0:
+
+    if a > 0.0001 and r2 >= 0.7:
         x100 = (100 - b) / a
         if 0 <= x100 <= 315360000:  # até 10 anos
             data_previsao = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100, unit="s")
             previsao100 = "≈" + str(data_previsao)
 
-    yMin = a * df["x"].min() + b
-    yMax = a * df["x"].max() + b
+    yMin = a * x.min() + b
+    yMax = a * x.max() + b
     reta = [
         {"x": str(df["horas"].min()), "y": round(yMin, 2)},
         {"x": str(df["horas"].max()), "y": round(yMax, 2)},
@@ -539,27 +573,38 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     # Métricas históricas (últimas 2h)
     media_cpu_2h = round(historico_2h_mac["cpuPorcentagem"].mean(), 2)
     media_ram_2h = round(historico_2h_mac["porcentagemRam"].mean(), 2)
+
     desvio_cpu = historico_2h_mac["cpuPorcentagem"].std()
     desvio_cpu = round(desvio_cpu, 2) if pd.notna(desvio_cpu) else 0
+
     desvio_ram = historico_2h_mac["porcentagemRam"].std()
     desvio_ram = round(desvio_ram, 2) if pd.notna(desvio_ram) else 0
+
+    desvio_disco = historico_2h_mac["porcentagemDisco"].std()
+    desvio_disco = round(desvio_disco, 2) if pd.notna(desvio_disco) else 0
 
     # Classificações
     status_cpu = classificarStatusAtual(cpu_uso, limite_cpu)
     status_ram = classificarStatusAtual(ram_uso, limite_ram)
+    status_disco = classificarStatusAtual(disco_uso, limite_disco)
+
     oscilacao_cpu = classificarOscilacao(cpu_uso, media_cpu_2h, desvio_cpu)
     oscilacao_ram = classificarOscilacao(ram_uso, media_ram_2h, desvio_ram)
+
     degradacao_cpu = classificarDegradacao(media_cpu_2h, limite_cpu)
     degradacao_ram = classificarDegradacao(media_ram_2h, limite_ram)
 
     # Regressão linear (numpy puro)
     previsao_cpu = regressaoLinear(historico_2h_mac, "cpuPorcentagem")
     previsao_ram = regressaoLinear(historico_2h_mac, "porcentagemRam")
+    previsao_disco = regressaoLinear(historico_2h_mac, "porcentagemDisco")
 
     # Índice de saúde (Andrei)
     penalidade_cpu = penalidadeSaudeComponente(status_cpu, oscilacao_cpu, degradacao_cpu, previsao_cpu["a"])
     penalidade_ram = penalidadeSaudeComponente(status_ram, oscilacao_ram, degradacao_ram, previsao_ram["a"])
-    saude = 100 - (penalidade_cpu + penalidade_ram)
+    penalidade_disco = penalidadeSaudeComponente(status_disco, None, None, previsao_disco["a"]) #!
+
+    saude = 100 - (penalidade_cpu + penalidade_ram + penalidade_disco)
     saude_str = f"{saude:.2f} / 100"
 
     # Dashboard financeira 
@@ -617,7 +662,8 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
         "disco": {
             "uso": disco_uso,
             "limite": limite_disco,
-            "alerta": alerta_disco,
+            "status": status_disco,
+            "previsao": previsao_disco,
         },
         "indiceSaude": saude_str,
         "financeiro": {
@@ -629,6 +675,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
             },
             "alertaCPU": alerta_cpu,
             "alertaRAM": alerta_ram,
+            "alertaDisco": alerta_disco,
             "kpiPerdaIndisponibilidade": round(perda_indisponibilidade, 2),
             "custoCorretivaPotencial": fin["custoCorretiva"],
             "economiaPreditiva": 450.0,
@@ -747,3 +794,5 @@ def lambda_handler(event, context):
     finally:
         cursor.close()
         conn.close()
+
+lambda_handler(None, None)
