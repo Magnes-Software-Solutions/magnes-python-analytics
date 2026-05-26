@@ -42,7 +42,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
     if df.empty or len(df) < 2:
         return {"a": 0, "b": 0, "reta": [], "previsao100": "Sem dados suficientes"}
 
-    df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds()
+    df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds() / 600
     x = df["x"].values
     y = df[componente].values
 
@@ -77,17 +77,16 @@ def regressaoLinear(ultimas2hMaquina, componente):
         return {
             "a": 0,
             "b": 0,
-            "r2": 0,
             "reta": [],
             "previsao100": "Erro regressão"
         }
 
     previsao100 = "Sem previsão"
 
-    if a > 0.0001 and r2 >= 0.7:
+    if a > 0.05 and r2 >= 0.7:
         x100 = (100 - b) / a
-        if 0 <= x100 <= 315360000:  # até 10 anos
-            data_previsao = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100, unit="s")
+        if 0 <= x100 <= 8640:  # até 2 meses
+            data_previsao = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100 * 10, unit="m")
             previsao100 = "≈" + str(data_previsao)
 
     yMin = a * x.min() + b
