@@ -456,6 +456,16 @@ def buscar_empresa(cursor, mac_address):
     resultado = cursor.fetchone()
     return resultado[0] if resultado else None
 
+def buscar_nome(cursor, mac_address):
+    cursor.execute(
+        """
+        SELECT numeroSerie FROM maquina WHERE macAddress = %s
+        """,
+        (mac_address,),
+    )
+    resultado = cursor.fetchone()
+    return resultado[0] if resultado else None
+
 def buscar_limites_em_lote(cursor, lista_macs):
     if not lista_macs:
         return {}
@@ -517,6 +527,7 @@ def gerar_linha_trusted(cursor, linha):
     horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     mac_address = linha["macAddress"]
     empresa = buscar_empresa(cursor, mac_address)
+    nomeMaquina = buscar_nome(cursor, mac_address)
 
     ram_livre = round(linha["ramLivre"] / 1024**3, 2)
     ram_usada = round(linha["ramUsada"] / 1024**3, 2)
@@ -531,6 +542,7 @@ def gerar_linha_trusted(cursor, linha):
     return {
         "empresa": empresa,
         "macAddress": mac_address,
+        "nomeMaquina": nomeMaquina,
         "horas": horas,
         "cpuPorcentagem": linha["cpuPorcentagem"],
         "cpuNucleosFisicos": linha["cpuNucleosFisicos"],
@@ -555,6 +567,7 @@ def gerar_linha_trusted(cursor, linha):
 
 def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, historico_2h_mac):
     mac = trusted_row["macAddress"]
+    nomeMaquina = trusted_row["nomeMaquina"]
     cpu_uso = float(trusted_row["cpuPorcentagem"])
     ram_uso = float(trusted_row["porcentagemRam"])
     ram_bruto = float(trusted_row["ramUsada"])
@@ -641,6 +654,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     record = {
         "empresa": trusted_row["empresa"],
         "macAddress": mac,
+        "nomeMaquina": nomeMaquina,
         "horario": str(trusted_row["horas"]),
         "cpu": {
             "uso": cpu_uso,
