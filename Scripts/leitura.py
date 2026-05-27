@@ -723,6 +723,9 @@ def lambda_handler(event, context):
     if df_raw.empty:
         logger.info("Arquivo raw vazio")
         return {"statusCode": 200, "body": "Arquivo raw vazio"}
+    
+    df_raw = df_raw.drop_duplicates(subset=["macAddress", "horario"])
+    df_raw = df_raw.reset_index(drop=True)
 
     conn = conectar_mysql()
     cursor = conn.cursor()
@@ -741,15 +744,16 @@ def lambda_handler(event, context):
         novas_trusted = [gerar_linha_trusted(cursor, linha) for _, linha in df_raw.iterrows()]
         df_novas = pd.DataFrame(novas_trusted)
         df_trusted = pd.concat([df_trusted, df_novas], ignore_index=True)
-<<<<<<< HEAD
 
         # Últimas 2h
         
         df_trusted["horas"] = pd.to_datetime(df_trusted["horas"], errors="coerce")
         df_trusted = df_trusted[df_trusted["horas"] >= pd.Timestamp.now() - pd.Timedelta(hours=2)]
         df_trusted = df_trusted.reset_index(drop=True)
-=======
->>>>>>> 8c5147eaeb944c4acfde53afb9ba6987ad9883ab
+
+        # Sem duplicatas. 
+        df_trusted = df_trusted.drop_duplicates(subset=["macAddress", "horas"])
+        df_trusted = df_trusted.reset_index(drop=True)
 
         # Persiste trusted no S3
         trusted_buffer = io.StringIO()
