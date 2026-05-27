@@ -524,7 +524,8 @@ def buscar_dados_financeiros_em_lote(cursor, lista_macs):
     return dados
 
 def gerar_linha_trusted(cursor, linha):
-    horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # horas = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    horas = linha["horario"]
     mac_address = linha["macAddress"]
     empresa = buscar_empresa(cursor, mac_address)
     nomeMaquina = buscar_nome(cursor, mac_address)
@@ -778,6 +779,15 @@ def lambda_handler(event, context):
         ultimas_2h = df_trusted[pd.to_datetime(df_trusted["horas"]) >= limite_2h]
 
         # Constrói registros enriquecidos
+        df_novas["horas"] = pd.to_datetime(df_novas["horas"])
+
+        df_novas = (
+            df_novas
+            .sort_values("horas")
+            .groupby("macAddress", as_index=False)
+            .tail(1)
+        )
+
         client_records = []
         for _, trusted_row in df_novas.iterrows():
             mac = trusted_row["macAddress"]
