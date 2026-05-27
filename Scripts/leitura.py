@@ -102,32 +102,38 @@ def regressaoLinear(ultimas2hMaquina, componente):
 
 def classificarStatusAtual(valorAtual, limite):
     if limite is None:
-        return "Desconhecido"
+        return "Limite desconhecido"
     if valorAtual < limite * 0.8:
         return "Estável"
-    if valorAtual < limite:
+    elif valorAtual < limite:
         return "Anormal"
-    return "Crítico"
+    elif valorAtual >= limite:
+        return "Crítico"
+    return "Desconhecido (dados insuficientes)"
 
 def classificarOscilacao(valorAtual, mediaHistorica, desvio):
     distancia = abs(valorAtual - mediaHistorica)
     if distancia <= desvio:
         return "Baixa (abaixo que 1σ)"
-    if distancia <= desvio * 2:
+    elif distancia <= desvio * 2:
         return "Média (entre 1σ e 2σ)"
-    if distancia <= desvio * 3:
+    elif distancia <= desvio * 3:
         return "Alta  (entre 2σ e 3σ)"
-    return "Severa (acima de 3σ)"
+    elif distancia <= desvio * 4:
+        return "Severa (acima de 3σ)"
+    return "Desconhecido (dados insuficientes)"
 
 def classificarDegradacao(mediaHistorica, limite):
     if limite is None:
-        return "Desconhecido"
+        return "Limite desconhecido"
     distancia = limite - mediaHistorica
     if distancia >= 15:
         return "Recuperação"
-    if distancia > 5:
+    elif distancia > 5:
         return "Degradação Média"
-    return "Degradação Alta"
+    elif distancia <= 5:
+        return "Degradação Alta"
+    return "Desconhecido (dados insuficientes)"
 
 def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, previsao):
     a = previsao["a"]
@@ -625,7 +631,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     penalidade_disco = penalidadeSaudeComponente(status_disco, None, degradacao_disco, previsao_disco)
 
     saude = 100 - (penalidade_cpu + penalidade_ram + penalidade_disco)
-    saude_str = f"{saude:.2f} / 100"
+    saude_str = f"{saude:.1f} / 100"
 
     # Dashboard financeira 
     linha_base = {
@@ -665,7 +671,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
         "nomeMaquina": nomeMaquina,
         "horario": str(trusted_row["horas"]),
         "cpu": {
-            "uso": cpu_uso,
+            "uso": round(cpu_uso, 1),
             "limite": limite_cpu,
             "status": status_cpu,
             "oscilacao": oscilacao_cpu,
@@ -673,7 +679,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
             "previsao": previsao_cpu,
         },
         "ram": {
-            "uso": ram_uso,
+            "uso": round(ram_uso, 1),
             "limite": limite_ram,
             "status": status_ram,
             "oscilacao": oscilacao_ram,
@@ -681,7 +687,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
             "previsao": previsao_ram,
         },
         "disco": {
-            "uso": disco_uso,
+            "uso": round(disco_uso, 1),
             "limite": limite_disco,
             "status": status_disco,
             "degradacao": degradacao_disco,
