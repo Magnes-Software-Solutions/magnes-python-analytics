@@ -585,6 +585,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     # Métricas históricas (últimas 2h)
     media_cpu_2h = round(historico_2h_mac["cpuPorcentagem"].mean(), 2)
     media_ram_2h = round(historico_2h_mac["porcentagemRam"].mean(), 2)
+    media_disco_2h = round(historico_2h_mac["porcentagemDisco"].mean(), 2)
 
     desvio_cpu = historico_2h_mac["cpuPorcentagem"].std()
     desvio_cpu = round(desvio_cpu, 2) if pd.notna(desvio_cpu) else 0
@@ -605,13 +606,14 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
 
     degradacao_cpu = classificarDegradacao(media_cpu_2h, limite_cpu)
     degradacao_ram = classificarDegradacao(media_ram_2h, limite_ram)
+    degradacao_disco = classificarDegradacao(media_disco_2h, limite_disco)
 
     # Regressão linear (numpy puro)
     previsao_cpu = regressaoLinear(historico_2h_mac, "cpuPorcentagem")
     previsao_ram = regressaoLinear(historico_2h_mac, "porcentagemRam")
     previsao_disco = regressaoLinear(historico_2h_mac, "porcentagemDisco")
 
-    # Índice de saúde (Andrei)
+    # Índice de saúde (João)
     penalidade_cpu = penalidadeSaudeComponente(status_cpu, oscilacao_cpu, degradacao_cpu, previsao_cpu["a"])
     penalidade_ram = penalidadeSaudeComponente(status_ram, oscilacao_ram, degradacao_ram, previsao_ram["a"])
     penalidade_disco = penalidadeSaudeComponente(status_disco, None, None, previsao_disco["a"]) #!
@@ -676,6 +678,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
             "uso": disco_uso,
             "limite": limite_disco,
             "status": status_disco,
+            "degradacao": degradacao_disco,
             "previsao": previsao_disco,
         },
         "indiceSaude": saude_str,
