@@ -31,8 +31,8 @@ def conectar_mysql():
 
 def regressaoLinear(ultimas2hMaquina, componente):
     """Retorna coeficientes da reta de regressão e previsão de atingir 100%."""
-    if ultimas2hMaquina.empty or len(ultimas2hMaquina) < 2:
-        return {"a": 0, "b": 0, "reta": [], "previsao100": "Sem previsão (poucos dados)"}
+    if ultimas2hMaquina.empty or len(ultimas2hMaquina) < 4:
+        return {"a": 0, "b": 0,"r2": 0, "reta": [], "previsao100": "Sem dados suficientes"}
 
     df = ultimas2hMaquina.copy()
     df["horas"] = pd.to_datetime(df["horas"], errors="coerce")
@@ -40,9 +40,10 @@ def regressaoLinear(ultimas2hMaquina, componente):
     df = df.dropna(subset=["horas", componente]).sort_values("horas")
 
     if df.empty or len(df) < 2:
-        return {"a": 0, "b": 0, "reta": [], "previsao100": "Sem dados suficientes"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Sem dados suficientes"}
 
-    df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds() / 600
+    intervaloMinutos = 10
+    df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds() / (60 * intervaloMinutos)
     x = df["x"].values
     y = df[componente].values
 
@@ -51,7 +52,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
     y = y[mascara_valida]
 
     if len(x) < 2:
-        return {"a": 0, "b": 0, "reta": [], "previsao100": "Sem dados válidos"}
+        return {"a": 0, "b": 0,"r2": 0, "reta": [], "previsao100": "Sem dados válidos"}
     
     if np.all(x == x[0]):
         return {"a": 0, "b": round(float(np.mean(y)), 2), "reta": [], "previsao100": "Sem variação temporal"}
@@ -77,6 +78,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
         return {
             "a": 0,
             "b": 0,
+            "r2": 0,
             "reta": [],
             "previsao100": "Erro regressão"
         }
@@ -85,8 +87,8 @@ def regressaoLinear(ultimas2hMaquina, componente):
 
     if a > 0.05 and r2 >= 0.7:
         x100 = (100 - b) / a
-        if 0 <= x100 <= 8640:  # até 2 meses
-            data_previsao = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100 * 10, unit="m")
+        if 0 <= x100 <= 8640:  # até 2 meses / 60 dias
+            data_previsao = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100 * intervaloMinutos, unit="m")
             previsao100 = "≈" + str(data_previsao)
 
     yMin = a * x.min() + b
@@ -96,7 +98,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
         {"x": str(df["horas"].max()), "y": round(yMax, 2)},
     ]
 
-    return {"a": a, "b": round(b, 2), "reta": reta, "previsao100": previsao100}
+    return {"a": a, "b": round(b, 2), "r2": round(r2, 2), "reta": reta, "previsao100": previsao100}
 
 def classificarStatusAtual(valorAtual, limite):
     if limite is None:
@@ -127,7 +129,9 @@ def classificarDegradacao(mediaHistorica, limite):
         return "Degradação Média"
     return "Degradação Alta"
 
-def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, tendenciaA):
+def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, previsao):
+    a = previsao["a"]
+    r2 = previsao["r2"]
     penalidade = 0
     if statusAtual == "Anormal":
         penalidade += 7.5
@@ -143,10 +147,11 @@ def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, tendenciaA):
         penalidade += 3.7
     elif degradacao == "Degradação Alta":
         penalidade += 7.5
-    if tendenciaA > 0.005:
-        penalidade += 3.7
-    elif tendenciaA > 0.002:
-        penalidade += 1.5
+    if r2 >= 0.7:
+        if a > 5:
+            penalidade += 3.7
+        elif a > 2:
+            penalidade += 1.5
     return penalidade
 
 def _simular_imagem(mac_address):
@@ -615,9 +620,9 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     previsao_disco = regressaoLinear(historico_2h_mac, "porcentagemDisco")
 
     # Índice de saúde (João)
-    penalidade_cpu = penalidadeSaudeComponente(status_cpu, oscilacao_cpu, degradacao_cpu, previsao_cpu["a"])
-    penalidade_ram = penalidadeSaudeComponente(status_ram, oscilacao_ram, degradacao_ram, previsao_ram["a"])
-    penalidade_disco = penalidadeSaudeComponente(status_disco, None, None, previsao_disco["a"]) #!
+    penalidade_cpu = penalidadeSaudeComponente(status_cpu, oscilacao_cpu, degradacao_cpu, previsao_cpu)
+    penalidade_ram = penalidadeSaudeComponente(status_ram, oscilacao_ram, degradacao_ram, previsao_ram)
+    penalidade_disco = penalidadeSaudeComponente(status_disco, None, degradacao_disco, previsao_disco)
 
     saude = 100 - (penalidade_cpu + penalidade_ram + penalidade_disco)
     saude_str = f"{saude:.2f} / 100"
