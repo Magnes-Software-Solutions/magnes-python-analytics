@@ -8,10 +8,7 @@ import uuid
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
 
-arquivo = "dadosBrutos.csv"
-
 bucket = "magnes-solutions"
-caminho_s3 = "raw/dadosBrutos.csv"
 
 s3 = boto3.client('s3',
                   aws_access_key_id = "",
@@ -26,6 +23,9 @@ def pegar_mac():
     return mac
 
 mac_address = pegar_mac()
+mac_arquivo = mac_address.replace(":", "-")
+arquivo = f"dadosBrutos_{mac_arquivo}.csv"
+caminho_s3 = f"raw/dadosBrutos_{mac_arquivo}.csv"
 print(f"MAC da máquina: {mac_address}")
 
 # loop infinito para definir e enviar as métricas para um arquivo CSV a cada 10 segundos.
@@ -96,6 +96,10 @@ Total Processos: {total_processos}
         df.to_csv(arquivo, index=False)
     else:
         df.to_csv(arquivo, mode="a", header=False, index=False)
+
+    df_historico = pd.read_csv(arquivo)
+    df_historico = df_historico.drop_duplicates(subset=["macAddress", "horario"])
+    df_historico.to_csv(arquivo, index=False)
 
     # envia (sobrescreve) no S3
     s3.upload_file(arquivo, bucket, caminho_s3)

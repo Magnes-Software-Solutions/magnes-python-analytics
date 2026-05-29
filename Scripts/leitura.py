@@ -18,6 +18,7 @@ s3 = boto3.client("s3")
 
 BUCKET = os.environ.get("BUCKET", "magnes-solutions")
 RAW_KEY = os.environ.get("RAW_KEY", "raw/dadosBrutos.csv")
+RAW_PREFIX = os.environ.get("RAW_PREFIX", "raw/")
 TRUSTED_KEY = os.environ.get("TRUSTED_KEY", "trusted/dadosTratados.csv")
 CLIENT_KEY = os.environ.get("CLIENT_KEY", "client/dadosPerfeitos.json")
 
@@ -730,11 +731,33 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
 # -------------------------------------------------------------------
 # Lambda principal
 # -------------------------------------------------------------------
+def carregar_dados_raw():
+    dfs = []
+    paginator = s3.get_paginator("list_objects_v2")
+
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=RAW_PREFIX):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            nome_arquivo = os.path.basename(key)
+            if not (nome_arquivo.startswith("dadosBrutos_") and nome_arquivo.endswith(".csv")):
+                continue
+
+            response = s3.get_object(Bucket=BUCKET, Key=key)
+            df = pd.read_csv(response["Body"])
+            if not df.empty:
+                dfs.append(df)
+
+    if not dfs:
+        response = s3.get_object(Bucket=BUCKET, Key=RAW_KEY)
+        return pd.read_csv(response["Body"])
+
+    df_raw = pd.concat(dfs, ignore_index=True)
+    return df_raw.drop_duplicates(subset=["macAddress", "horario"]).reset_index(drop=True)
+
 def lambda_handler(event, context):
     logger.info("Iniciando ETL unificado")
 
-    response = s3.get_object(Bucket=BUCKET, Key=RAW_KEY)
-    df_raw = pd.read_csv(response["Body"])
+    df_raw = carregar_dados_raw()
     if df_raw.empty:
         logger.info("Arquivo raw vazio")
         return {"statusCode": 200, "body": "Arquivo raw vazio"}
