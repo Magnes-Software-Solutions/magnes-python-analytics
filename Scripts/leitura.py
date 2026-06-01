@@ -170,16 +170,14 @@ def _simular_imagem(mac_address):
         "tipoDicom": rng.choice(TIPOS_DICOM),
     }
 
-def _simular_corrente(mac_address):
-    seed = int(mac_address.replace(":", ""), 16) % (2**32)
-    rng = random.Random(seed)
+def _simular_corrente():
+    rng = random.Random()
     if rng.random() <= 0.6:
-        return rng.randint(115, 135)
+        return rng.randint(120, 130)
     return rng.choice([rng.randint(90, 114), rng.randint(136, 160)])
 
-def _simular_poeira(mac_address):
-    seed = int(mac_address.replace(":", ""), 16) % (2**32)
-    rng = random.Random(seed)
+def _simular_poeira():
+    rng = random.Random()
     return rng.randint(0, 100)
 
 def uso_simulado_da_maquina(cpu_base):
@@ -663,8 +661,10 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     status_sla = "CONFORME" if uptime_real >= fin["metaSLA"] else "VIOLADO"
 
     # Ambiental
-    corrente = _simular_corrente(mac)
-    poeira = _simular_poeira(mac)
+    voltagem_limite = 140;
+    corrente = _simular_corrente()
+    poeira = _simular_poeira()
+    percentual_voltagem = round(min((corrente / voltagem_limite) * 100, 100.0), 1);
 
     record = {
         "empresa": trusted_row["empresa"],
@@ -717,6 +717,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
         "ambiente": {
             "corrente": corrente,
             "poeira": poeira,
+            "percentualVoltagem" : percentual_voltagem
         },
         # Campos para KPIs agregadas (Caio)
         "ramUso": ram_uso,
