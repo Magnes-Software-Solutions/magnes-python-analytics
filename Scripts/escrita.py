@@ -16,11 +16,28 @@ s3 = boto3.client('s3',
                   aws_session_token = ""
                 )
 
-# pega MAC uma vez só
+# Pegar MAC da rede espeficica
 def pegar_mac():
-    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
-                    for ele in range(0,8*6,8)][::-1])
-    return mac
+    interfaces = psutil.net_if_addrs()
+
+    interfaces_ignoradas = ["loopback", "virtual", "vmware", "docker", "veth", "br-", "hyper-v"]
+
+    for nome_interface, enderecos in interfaces.items():
+        nome_interface = nome_interface.lower()
+
+        # ignora interfaces virtuais
+        if any(x in nome_interface for x in interfaces_ignoradas):
+            continue
+
+        for endereco in enderecos:
+            if endereco.family == psutil.AF_LINK:
+                mac = endereco.address
+
+                if mac and len(mac) >= 17:
+                    if mac != "00:00:00:00:00:00":
+                        return mac.lower()
+
+    return None
 
 mac_address = pegar_mac()
 mac_arquivo = mac_address.replace(":", "-")
