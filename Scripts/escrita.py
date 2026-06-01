@@ -2,8 +2,6 @@ import psutil, datetime, time
 import pandas as pd
 import os
 import boto3
-import uuid
-
 
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
