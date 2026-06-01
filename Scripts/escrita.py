@@ -6,7 +6,7 @@ import boto3
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
 
-bucket = "magnes-solutions"
+bucket = "bucket-csv-329272180750-us-east-1-an"
 
 s3 = boto3.client('s3',
                   aws_access_key_id = "",
@@ -37,8 +37,8 @@ def pegar_mac():
 
     return None
 
-mac_address = pegar_mac()
-mac_arquivo = mac_address.replace(":", "-")
+mac_arquivo = pegar_mac()
+mac_address = mac_arquivo.replace("-", ":")
 arquivo = f"dadosBrutos_{mac_arquivo}.csv"
 caminho_s3 = f"raw/dadosBrutos_{mac_arquivo}.csv"
 print(f"MAC da máquina: {mac_address}")
@@ -121,4 +121,4 @@ Total Processos: {total_processos}
 
     print("CSV atualizado no S3")
     
-    time.sleep(600)
+    time.sleep(10)
