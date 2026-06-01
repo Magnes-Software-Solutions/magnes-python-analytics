@@ -171,23 +171,29 @@ def _simular_imagem(mac_address):
     }
 
 def _simular_corrente():
-    rng = random.Random()
-    if rng.random() <= 0.6:
-        return rng.randint(120, 130)
-    return rng.choice([rng.randint(90, 114), rng.randint(136, 160)])
+    if random.random() <= 0.6:
+        return random.randint(115, 135)
+    return random.choice([
+        random.randint(90, 114),
+        random.randint(136, 160)
+    ])
 
 def _simular_poeira():
-    rng = random.Random()
-    return rng.randint(0, 100)
+    if random.random() <= 0.6:
+        return random.randint(0, 11)
+    elif random.random() <= 0.85:
+        return random.randint(12, 34)
+    else:
+        return random.randint(35, 75)
 
 def uso_simulado_da_maquina(cpu_base):
     chance_evento = random.random()
     if chance_evento < 0.50:
         cpu = cpu_base + random.uniform(5, 20)
     elif chance_evento < 0.85:
-        cpu = cpu_base + random.uniform(60, 85)
+        cpu = cpu_base + random.uniform(20, 70)
     else:
-        cpu = cpu_base + random.uniform(90, 130)
+        cpu = cpu_base + random.uniform(70, 100)
     return round(min(cpu, 100.0), 2)
 
 def gerar_linha_financeira_client(dados_fin, linha_client_original):
@@ -661,10 +667,10 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     status_sla = "CONFORME" if uptime_real >= fin["metaSLA"] else "VIOLADO"
 
     # Ambiental
-    voltagem_limite = 140;
+    voltagem_limite = 135
     corrente = _simular_corrente()
     poeira = _simular_poeira()
-    percentual_voltagem = round(min((corrente / voltagem_limite) * 100, 100.0), 1);
+    percentual_voltagem = round(min((corrente / voltagem_limite) * 100, 100.0), 1)
 
     record = {
         "empresa": trusted_row["empresa"],
