@@ -2,30 +2,45 @@ import psutil, datetime, time
 import pandas as pd
 import os
 import boto3
-import uuid
-
 
 # Importação das bibliotecas necessárias para a coleta de métricas do sistema.
 
 
-arquivo = "dadosBrutos.csv"
-
-bucket = "s3-projeto-magnes-2026.04.09"
-caminho_s3 = "raw/dadosBrutos.csv"
+bucket = "bucket-csv-329272180750-us-east-1-an"
 
 s3 = boto3.client('s3',
                   aws_access_key_id = "",
                   aws_secret_access_key = "",
                   aws_session_token = ""
-                    )
+                )
 
-# pega MAC uma vez só
+# Pegar MAC da rede espeficica
 def pegar_mac():
-    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff)
-                    for ele in range(0,8*6,8)][::-1])
-    return mac
+    interfaces = psutil.net_if_addrs()
 
-mac_address = pegar_mac()
+    interfaces_ignoradas = ["loopback", "virtual", "vmware", "docker", "veth", "br-", "hyper-v"]
+
+    for nome_interface, enderecos in interfaces.items():
+        nome_interface = nome_interface.lower()
+
+        # ignora interfaces virtuais
+        if any(x in nome_interface for x in interfaces_ignoradas):
+            continue
+
+        for endereco in enderecos:
+            if endereco.family == psutil.AF_LINK:
+                mac = endereco.address
+
+                if mac and len(mac) >= 17:
+                    if mac != "00:00:00:00:00:00":
+                        return mac.lower()
+
+    return None
+
+mac_arquivo = pegar_mac()
+mac_address = mac_arquivo.replace("-", ":")
+arquivo = f"dadosBrutos_{mac_arquivo}.csv"
+caminho_s3 = f"raw/dadosBrutos_{mac_arquivo}.csv"
 print(f"MAC da máquina: {mac_address}")
 
 # loop infinito para definir e enviar as métricas para um arquivo CSV a cada 10 segundos.
@@ -97,11 +112,13 @@ Total Processos: {total_processos}
     else:
         df.to_csv(arquivo, mode="a", header=False, index=False)
 
+    df_historico = pd.read_csv(arquivo)
+    df_historico = df_historico.drop_duplicates(subset=["macAddress", "horario"])
+    df_historico.to_csv(arquivo, index=False)
+
     # envia (sobrescreve) no S3
     s3.upload_file(arquivo, bucket, caminho_s3)
 
     print("CSV atualizado no S3")
     
     time.sleep(10)
-
-    
