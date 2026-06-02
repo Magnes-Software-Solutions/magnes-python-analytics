@@ -842,10 +842,30 @@ def lambda_handler(event, context):
             record = construir_registro_cliente(trusted_row, limite_mac, financeiro_mac, hist_mac)
             client_records.append(record)
 
+        df_historico = (
+            df_trusted[df_trusted["macAddress"].isin(macs_novos)]
+            .sort_values("horas")
+            .groupby("macAddress", as_index=False)
+            .tail(2)
+        )
+
+        historico_records = []
+        for _, trusted_row in df_historico.iterrows():
+            mac = trusted_row["macAddress"]
+            hist_mac = ultimas_2h[ultimas_2h["macAddress"] == mac]
+            limite_mac = limites.get(mac, {})
+            financeiro_mac = dados_financeiros.get(mac, {
+                "valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0,
+                "custoCorretiva": 0.0, "bairro": "N/A", "cidade": "N/A",
+                "numero": "N/A", "cep": "N/A",
+            })
+            record = construir_registro_cliente(trusted_row, limite_mac, financeiro_mac, hist_mac)
+            historico_records.append(record)
+
         # KPIs agregadas, ranking e histórico (Caio)
         kpis = gerar_kpis(client_records)
         ranking = gerar_ranking(client_records)
-        historico = gerar_historico(client_records)
+        historico = gerar_historico(historico_records, limite=2)
 
         output = {
             "maquinas": client_records,
