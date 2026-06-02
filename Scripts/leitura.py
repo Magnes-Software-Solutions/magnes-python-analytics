@@ -5,9 +5,6 @@ import logging
 import os
 import random
 
-import random                          # bivlioteca adcionada para kpi
-from collections import defaultdict   # biblioteca adcionada para kpi
-
 import boto3
 import mysql.connector
 import numpy as np
@@ -764,201 +761,6 @@ def carregar_dados_raw():
     df_raw = pd.concat(dfs, ignore_index=True)
     return df_raw.drop_duplicates(subset=["macAddress", "horario"]).reset_index(drop=True)
 
-#aqui começa as kpi do caio lindo cheiroso e maravilhoso
-
-# todos os tipos de exame DICOM para a kpi 4
- 
- 
-def _simular_imagem(mac_address):
-    TIPOS_DICOM = ["T1-weighted", "T2-weighted", "FLAIR", "DWI", "T1 contrast", "BOLD fMRI"]
-    """
-    Gera tamanho e tipo de imagem DICOM de forma determinística por MAC.
-    Usado como fallback na KPI 4 quando não há variação de disco detectável.
-    O macAddress é usado como semente para gerar sempre os mesmos valores para as.
-    """
-    seed = int(mac_address.replace(":", ""), 16) % (2**32)
-    rng  = random.Random(seed)
-    return {
-        "tamanhoGB": round(rng.uniform(1.5, 8.0), 2),
-        "tipoDicom": rng.choice(TIPOS_DICOM),
-    }
-     # Agrupa por macAddress e ordena por horario em ordem crescente (pra facilitar minha vida)
-def _agrupar_por_mac(linhas_client):
-    grupos = defaultdict(list)
-    for linha in linhas_client:
-        grupos[linha["macAddress"]].append(linha)
-    for mac in grupos:
-        grupos[mac].sort(key=lambda x: x["horario"])
-    return grupos
-
-
-def gerar_kpis(linhas_client):
-     
-    grupos = _agrupar_por_mac(linhas_client)
-   
-    # aqui comeca a kpi 1
-    ultimos  = {mac: registros[-1] for mac, registros in grupos.items() if registros}
-    kpi1_mac = max(ultimos, key=lambda mac: ultimos[mac]["ramUso"])
- 
-    kpi_maquina_critica = {
-        "macAddress":  kpi1_mac,
-        "empresa":     ultimos[kpi1_mac]["empresa"],
-        "ramUso":      ultimos[kpi1_mac]["ramUso"],      # % de RAM consumida agora
-        "ramUsoBruto": ultimos[kpi1_mac]["ramUsoBruto"], # GB consumidos agora
-    }
-
-    # aqui termina a kpi 1
- 
-    # aqui começa a kpi 2 
-    variacoes = {}
-    for mac, registros in grupos.items():
-        if len(registros) < 2:
-            continue
-        variacao = abs(registros[-1]["ramUso"] - registros[-2]["ramUso"])
-        variacoes[mac] = {
-            "variacao":  round(variacao, 2),
-            "ultimo":    registros[-1]["ramUso"],
-            "penultimo": registros[-2]["ramUso"],
-            "empresa":   registros[-1]["empresa"],
-        }
- 
-    if variacoes:
-        kpi2_mac = max(variacoes, key=lambda mac: variacoes[mac]["variacao"])
-        kpi_maior_variacao = {
-            "macAddress": kpi2_mac,
-            "empresa":    variacoes[kpi2_mac]["empresa"],
-            "variacao":   variacoes[kpi2_mac]["variacao"],
-            "ultimo":     variacoes[kpi2_mac]["ultimo"],
-            "penultimo":  variacoes[kpi2_mac]["penultimo"],
-        }
-    else:
-        logger.warning("KPI 2: nenhum macAddress possui 2 ou mais registros.")
-        kpi_maior_variacao = None
-
-    # aqui termina a kpi 2    
- 
-    # aqi comreça a kpi 3
-    tendencias = {}
-    for mac, registros in grupos.items():
-        if len(registros) < 2:
-            continue
-        delta = registros[-1]["ramUso"] - registros[-2]["ramUso"]
-        tendencias[mac] = {
-            "delta":   round(delta, 2),  # positivo = cresceu, negativo = caiu
-            "ramUso":  registros[-1]["ramUso"],
-            "empresa": registros[-1]["empresa"],
-        }
- 
-    if tendencias:
-        kpi3_mac = max(tendencias, key=lambda mac: tendencias[mac]["delta"])
-        kpi_pior_tendencia = {
-            "macAddress": kpi3_mac,
-            "empresa":    tendencias[kpi3_mac]["empresa"],
-            "delta":      tendencias[kpi3_mac]["delta"],
-            "ramUso":     tendencias[kpi3_mac]["ramUso"],
-        }
-    else:
-        logger.warning("KPI 3: nenhum macAddress possui 2 ou mais registros.")
-        kpi_pior_tendencia = None
-
-    # aqui termina a kpi 3    
- 
-    # aqui começa a kpi 4
-    # Usa o crescimento de discoUsoBruto como proxy do tamanho do arquivo DICOM.
-    # Se não houver crescimento detectável, cai no fallback.
-    crescimentos = {}
-    for mac, registros in grupos.items():
-        if len(registros) < 2:
-            continue
-        delta_disco = registros[-1]["discoUsoBruto"] - registros[-2]["discoUsoBruto"]
-        if delta_disco > 0:
-            crescimentos[mac] = {
-                "tamanhoGB": round(delta_disco, 2),
-                "empresa":   registros[-1]["empresa"],
-                "simulado":  False,
-            }
- 
-    if crescimentos:
-        kpi4_mac = max(crescimentos, key=lambda mac: crescimentos[mac]["tamanhoGB"])
-        kpi_imagem_pesada = {
-            "macAddress": kpi4_mac,
-            "empresa":    crescimentos[kpi4_mac]["empresa"],
-            "tamanhoGB":  crescimentos[kpi4_mac]["tamanhoGB"],
-            "tipoDicom":  _simular_imagem(kpi4_mac)["tipoDicom"],  # tipo simulado
-            "simulado":   False,
-        }
-    else:
-        logger.warning("KPI 4: sem crescimento de disco detectado. Usando simulação.")
-        kpi4_mac = max(ultimos, key=lambda mac: _simular_imagem(mac)["tamanhoGB"])
-        simulacao = _simular_imagem(kpi4_mac)
-        kpi_imagem_pesada = {
-            "macAddress": kpi4_mac,
-            "empresa":    ultimos[kpi4_mac]["empresa"],
-            "tamanhoGB":  simulacao["tamanhoGB"],
-            "tipoDicom":  simulacao["tipoDicom"],
-            "simulado":   True,
-        }
-    # aqui acaba a 4 kpi
-    return {
-        "geradoEm":           datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "machineMaisCritica": kpi_maquina_critica,
-        "maiorVariacaoRam":   kpi_maior_variacao,
-        "piorTendencia":      kpi_pior_tendencia,
-        "imagemMaisPesada":   kpi_imagem_pesada,
-    }
-    # Aqui acaba as KPI do caio lindo maravilhoso
-
-    # Aqui começa o  ranking do caio lindo
-def gerar_ranking(linhas_client):
-
-        grupos = _agrupar_por_mac(linhas_client)
- 
-        ranking = []
-        for mac, registros in grupos.items():
-            ultimo = registros[-1]
-            ranking.append({
-                "macAddress":  mac,
-                "empresa":     ultimo["empresa"],
-                "ramUso":      ultimo["ramUso"],
-                "ramUsoBruto": ultimo["ramUsoBruto"],
-                "horario":     ultimo["horario"],
-        })
- 
-        ranking.sort(key=lambda x: x["ramUso"], reverse=True)
- 
-        for i, item in enumerate(ranking, start=1):
-            item["posicao"] = i
- 
-        return ranking
- 
-    # Aqui termina o ranking
-
-    # Aqui comeca o historico (grafico de linha)
-def gerar_historico(linhas_client, limite=1):
-    
-    grupos = _agrupar_por_mac(linhas_client)
- 
-    historico = []
-    for mac, registros in grupos.items():
-        ultimos = registros[-limite:]
-        historico.append({
-            "macAddress": mac,
-            "empresa":    registros[-1]["empresa"],
-            "registros": [
-                {
-                    "horario":     r["horario"],
-                    "ramUso":      r["ramUso"],
-                    "ramUsoBruto": r["ramUsoBruto"],
-                }
-                for r in ultimos
-            ],
-        })
-
-    return historico
-
-
-    #Aqui termina o Historico(Grafico de linha) 
-
 def lambda_handler(event, context):
     logger.info("Iniciando ETL unificado")
 
@@ -1040,10 +842,30 @@ def lambda_handler(event, context):
             record = construir_registro_cliente(trusted_row, limite_mac, financeiro_mac, hist_mac)
             client_records.append(record)
 
+        df_historico = (
+            df_trusted[df_trusted["macAddress"].isin(macs_novos)]
+            .sort_values("horas")
+            .groupby("macAddress", as_index=False)
+            .tail(2)
+        )
+
+        historico_records = []
+        for _, trusted_row in df_historico.iterrows():
+            mac = trusted_row["macAddress"]
+            hist_mac = ultimas_2h[ultimas_2h["macAddress"] == mac]
+            limite_mac = limites.get(mac, {})
+            financeiro_mac = dados_financeiros.get(mac, {
+                "valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0,
+                "custoCorretiva": 0.0, "bairro": "N/A", "cidade": "N/A",
+                "numero": "N/A", "cep": "N/A",
+            })
+            record = construir_registro_cliente(trusted_row, limite_mac, financeiro_mac, hist_mac)
+            historico_records.append(record)
+
         # KPIs agregadas, ranking e histórico (Caio)
         kpis = gerar_kpis(client_records)
         ranking = gerar_ranking(client_records)
-        historico = gerar_historico(client_records)
+        historico = gerar_historico(historico_records, limite=2)
 
         output = {
             "maquinas": client_records,
