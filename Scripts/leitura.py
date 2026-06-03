@@ -91,10 +91,10 @@ def regressaoLinear(ultimas2hMaquina, componente):
             data_prev = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100 * intervaloMinutos, unit="m")
             previsao100 = "≈" + str(data_prev)
 
-    reta = [
-        {"x": str(df["horas"].min()), "y": round(a * x.min() + b, 2)},
-        {"x": str(df["horas"].max()), "y": round(a * x.max() + b, 2)},
-    ]
+        reta = [
+            {"x": str(df["horas"].min()), "y": round(a * x.min() + b, 2)},
+            {"x": str(df["horas"].max()), "y": round(a * x.max() + b, 2)},
+        ]
     return {"a": a, "b": round(b, 2), "r2": round(r2, 2), "reta": reta, "previsao100": previsao100}
 
 
