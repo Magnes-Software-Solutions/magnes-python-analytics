@@ -460,7 +460,7 @@ def gerar_ranking(linhas_client):
     return ranking
 
 
-def gerar_historico(linhas_client, limite=1):
+def gerar_historico(linhas_client, limite=2):
     grupos = _agrupar_por_mac(linhas_client)
     return [
         {
@@ -792,13 +792,19 @@ def lambda_handler(event, context):
         dados_financeiros = buscar_dados_financeiros_em_lote(cursor, macs_novos)
 
         df_novas["horas"] = pd.to_datetime(df_novas["horas"])
-        df_novas = df_novas.sort_values("horas").groupby("macAddress", as_index=False).tail(1)
+        df_ultimos = df_novas.sort_values("horas").groupby("macAddress", as_index=False).tail(1)
+        df_historico = (
+            df_trusted[df_trusted["macAddress"].isin(macs_novos)]
+            .sort_values("horas")
+            .groupby("macAddress", as_index=False)
+            .tail(2)
+        )
 
         fin_padrao = {"valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0,
                       "custoCorretiva": 0.0, "bairro": "N/A", "cidade": "N/A", "numero": "N/A", "cep": "N/A"}
 
         client_records = []
-        for _, trusted_row in df_novas.iterrows():
+        for _, trusted_row in df_ultimos.iterrows():
             mac      = trusted_row["macAddress"]
             hist_mac = df_trusted[df_trusted["macAddress"] == mac]
             record   = construir_registro_cliente(
@@ -809,13 +815,25 @@ def lambda_handler(event, context):
             )
             client_records.append(record)
 
+        historico_records = []
+        for _, trusted_row in df_historico.iterrows():
+            mac = trusted_row["macAddress"]
+            hist_mac = df_trusted[df_trusted["macAddress"] == mac]
+            record = construir_registro_cliente(
+                trusted_row,
+                limites.get(mac, {}),
+                dados_financeiros.get(mac, fin_padrao),
+                hist_mac,
+            )
+            historico_records.append(record)
+
         tendencia_7dias = simular_tendencia_7dias(df_trusted_7dias)
 
         output = {
             "maquinas": client_records,
             "kpis":     gerar_kpis(client_records),
             "ranking":  gerar_ranking(client_records),
-            "historico": gerar_historico(client_records),
+            "historico": gerar_historico(historico_records, limite=2),
             "tendencia_7dias": tendencia_7dias,
         }
 
