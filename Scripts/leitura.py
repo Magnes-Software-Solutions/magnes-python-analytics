@@ -23,17 +23,10 @@ TRUSTED_KEY  = os.environ.get("TRUSTED_KEY",  "trusted/dadosTratados.csv")
 CLIENT_KEY   = os.environ.get("CLIENT_KEY",   "client/dadosPerfeitos.json")
 
 
-# ---------------------------------------------------------------------------
-# Utilitário de normalização de MAC
-# ---------------------------------------------------------------------------
 def normalizar_mac(mac: str) -> str:
-    """Garante formato xx:xx:xx:xx:xx:xx em lowercase, aceitando hífens ou dois-pontos."""
     return mac.replace("-", ":").lower()
 
 
-# ---------------------------------------------------------------------------
-# MySQL
-# ---------------------------------------------------------------------------
 def conectar_mysql():
     return mysql.connector.connect(
         host=os.environ["MYSQL_HOST"],
@@ -43,13 +36,9 @@ def conectar_mysql():
     )
 
 
-# ---------------------------------------------------------------------------
-# Análise estatística
-# ---------------------------------------------------------------------------
 def regressaoLinear(ultimas2hMaquina, componente):
-    """Retorna coeficientes da reta de regressão e previsão de atingir 100%."""
     if ultimas2hMaquina.empty or len(ultimas2hMaquina) < 4:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Sem dados suficientes"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados insuficientes"}
 
     df = ultimas2hMaquina.copy()
     df["horas"] = pd.to_datetime(df["horas"], errors="coerce")
@@ -57,7 +46,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
     df = df.dropna(subset=["horas", componente]).sort_values("horas")
 
     if df.empty or len(df) < 2:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Sem dados suficientes"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados insuficientes"}
 
     intervaloMinutos = 10
     df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds() / (60 * intervaloMinutos)
@@ -68,7 +57,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
     x, y = x[mascara], y[mascara]
 
     if len(x) < 2:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Sem dados válidos"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados inválidos"}
 
     if np.all(x == x[0]):
         return {"a": 0, "b": round(float(np.mean(y)), 2), "reta": [], "previsao100": "Sem variação temporal"}
@@ -85,6 +74,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
         return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Erro regressão"}
 
     previsao100 = "Sem previsão"
+    reta = []
     if a > 0.05 and r2 >= 0.7:
         x100 = (100 - b) / a
         if 0 <= x100 <= 8640:
@@ -129,7 +119,9 @@ def classificarDegradacao(mediaHistorica, limite):
         return "Recuperação"
     elif distancia > 5:
         return "Degradação Média"
-    return "Degradação Alta"
+    elif distancia <= 5:
+        return "Degradação Alta"
+    return "Desconhecido (dados insuficientes)"
 
 
 def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, previsao):
@@ -155,12 +147,8 @@ def penalidadeSaudeComponente(statusAtual, oscilacao, degradacao, previsao):
     return penalidade
 
 
-# ---------------------------------------------------------------------------
-# Simulações
-# ---------------------------------------------------------------------------
 def _simular_imagem(mac_address):
     TIPOS_DICOM = ["T1-weighted", "T2-weighted", "FLAIR", "DWI", "T1 contrast", "BOLD fMRI"]
-    # FIX: normaliza hífens e dois-pontos antes de converter para hex
     mac_limpo = mac_address.replace("-", ":").replace(":", "")
     seed = int(mac_limpo, 16) % (2**32)
     rng = random.Random(seed)
@@ -196,9 +184,73 @@ def uso_simulado_da_maquina(cpu_base):
     return round(min(cpu, 100.0), 2)
 
 
-# ---------------------------------------------------------------------------
-# Dashboard financeiro
-# ---------------------------------------------------------------------------
+def simular_tendencia_7dias(df_trusted_atual):
+    if df_trusted_atual.empty:
+        return []
+
+    cpu_atual = df_trusted_atual['cpuPorcentagem'].mean() if 'cpuPorcentagem' in df_trusted_atual.columns else random.uniform(40, 70)
+    ram_atual = df_trusted_atual['porcentagemRam'].mean() if 'porcentagemRam' in df_trusted_atual.columns else random.uniform(30, 60)
+    disco_atual = df_trusted_atual['porcentagemDisco'].mean() if 'porcentagemDisco' in df_trusted_atual.columns else random.uniform(40, 75)
+    maquinas_atuais = df_trusted_atual['macAddress'].nunique() if 'macAddress' in df_trusted_atual.columns else random.randint(3, 8)
+
+    alertas_atuais = len(df_trusted_atual[
+        (df_trusted_atual['cpuPorcentagem'] > 80) |
+        (df_trusted_atual['porcentagemRam'] > 70) |
+        (df_trusted_atual['porcentagemDisco'] > 90)
+    ]) if all(col in df_trusted_atual.columns for col in ['cpuPorcentagem', 'porcentagemRam', 'porcentagemDisco']) else random.randint(0, 8)
+
+    tendencia = []
+    hoje = pd.Timestamp.now().date()
+
+    for dias_atras in range(6, -1, -1):
+        data = hoje - datetime.timedelta(days=dias_atras)
+        fator_variacao = 1 + (dias_atras * 0.08)
+
+        variacao_cpu = random.uniform(-8, 12) * fator_variacao
+        cpu_dia = min(max(cpu_atual - (dias_atras * 1.5) + variacao_cpu, 20), 95)
+
+        variacao_ram = random.uniform(-5, 8) * fator_variacao
+        ram_dia = min(max(ram_atual - (dias_atras * 0.8) + variacao_ram, 15), 92)
+
+        variacao_disco = random.uniform(-3, 5) * fator_variacao
+        disco_dia = min(max(disco_atual - (dias_atras * 2.0) + variacao_disco, 30), 88)
+
+        alertas_base = alertas_atuais - (dias_atras * random.randint(0, 2))
+        if cpu_dia > 75 or ram_dia > 65:
+            alertas_base += random.randint(1, 3)
+        alertas_dia = max(0, min(alertas_base + random.randint(-2, 3), 15))
+
+        cves_dia = max(0, random.randint(1, 5) - (dias_atras * random.randint(0, 1)))
+        if dias_atras > 3:
+            cves_dia += random.randint(0, 2)
+
+        if dias_atras == 0:
+            cobertura = random.randint(60, 100)
+        elif dias_atras == 1:
+            cobertura = random.randint(85, 100)
+        else:
+            cobertura = random.randint(95, 100)
+
+        maquinas_dia = max(1, maquinas_atuais + random.randint(-1, 0))
+
+        tendencia.append({
+            "data": data.strftime("%Y-%m-%d"),
+            "cpu_media": round(cpu_dia, 1),
+            "cpu_max": round(cpu_dia + random.uniform(5, 15), 1),
+            "ram_media": round(ram_dia, 1),
+            "ram_max": round(ram_dia + random.uniform(3, 10), 1),
+            "disco_media": round(disco_dia, 1),
+            "disco_max": round(disco_dia + random.uniform(2, 8), 1),
+            "total_alertas": alertas_dia,
+            "cves_ativas": cves_dia,
+            "cobertura_coleta": cobertura,
+            "total_maquinas": maquinas_dia,
+            "coletas_realizadas": random.randint(120, 144)
+        })
+
+    return tendencia
+
+
 def gerar_linha_financeira_client(dados_fin, linha_client_original):
     cpu_original = linha_client_original["cpuUso"]
     cpu_simulado = uso_simulado_da_maquina(cpu_original)
@@ -291,9 +343,6 @@ def gerar_linha_financeira_client(dados_fin, linha_client_original):
     }
 
 
-# ---------------------------------------------------------------------------
-# KPIs / Ranking / Histórico
-# ---------------------------------------------------------------------------
 def _agrupar_por_mac(linhas_client):
     grupos = defaultdict(list)
     for linha in linhas_client:
@@ -419,9 +468,6 @@ def gerar_historico(linhas_client, limite=1):
     ]
 
 
-# ---------------------------------------------------------------------------
-# Consultas MySQL em lote
-# ---------------------------------------------------------------------------
 def buscar_empresa(cursor, mac_address):
     cursor.execute(
         """
@@ -489,11 +535,7 @@ def buscar_dados_financeiros_em_lote(cursor, lista_macs):
     return dados
 
 
-# ---------------------------------------------------------------------------
-# Transformação RAW → TRUSTED
-# ---------------------------------------------------------------------------
 def gerar_linha_trusted(cursor, linha):
-    # FIX: normaliza MAC para dois-pontos lowercase, independente do formato do CSV
     mac_address = normalizar_mac(linha["macAddress"])
     empresa     = buscar_empresa(cursor, mac_address)
     nomeMaquina = buscar_nome(cursor, mac_address)
@@ -528,9 +570,6 @@ def gerar_linha_trusted(cursor, linha):
     }
 
 
-# ---------------------------------------------------------------------------
-# Construção do registro enriquecido
-# ---------------------------------------------------------------------------
 def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, historico_2h_mac):
     mac         = trusted_row["macAddress"]
     cpu_uso     = float(trusted_row["cpuPorcentagem"])
@@ -657,9 +696,6 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     return record
 
 
-# ---------------------------------------------------------------------------
-# Leitura do RAW no S3
-# ---------------------------------------------------------------------------
 def carregar_dados_raw():
     dfs = []
     paginator = s3.get_paginator("list_objects_v2")
@@ -669,7 +705,6 @@ def carregar_dados_raw():
             key          = obj["Key"]
             nome_arquivo = os.path.basename(key)
 
-            # Aceita "dadosBrutos.csv" (fallback) e "dadosBrutos_<mac>.csv" (por máquina)
             valido = (
                 nome_arquivo == "dadosBrutos.csv"
                 or (nome_arquivo.startswith("dadosBrutos") and nome_arquivo.endswith(".csv"))
@@ -702,9 +737,6 @@ def carregar_dados_raw():
     return df_raw
 
 
-# ---------------------------------------------------------------------------
-# Lambda handler
-# ---------------------------------------------------------------------------
 def lambda_handler(event, context):
     logger.info("Iniciando ETL unificado")
 
@@ -719,7 +751,6 @@ def lambda_handler(event, context):
     cursor = conn.cursor()
 
     try:
-        # Carrega trusted existente
         try:
             resp       = s3.get_object(Bucket=BUCKET, Key=TRUSTED_KEY)
             df_trusted = pd.read_csv(resp["Body"])
@@ -728,36 +759,31 @@ def lambda_handler(event, context):
             logger.info("Nenhum trusted anterior encontrado, iniciando novo")
             df_trusted = pd.DataFrame()
 
-        # Gera novas linhas trusted e concatena
         novas_trusted = [gerar_linha_trusted(cursor, linha) for _, linha in df_raw.iterrows()]
         df_novas   = pd.DataFrame(novas_trusted)
         df_trusted = pd.concat([df_trusted, df_novas], ignore_index=True)
 
-        # FIX: converte horas antes de filtrar
         df_trusted["horas"] = pd.to_datetime(df_trusted["horas"], errors="coerce", utc=False)
 
-        # FIX: usa timestamp máximo do dataset como referência (não now())
-        # — evita descartar dados que chegam com atraso ou em lote
         ts_max = df_trusted["horas"].max()
         if pd.isna(ts_max):
             logger.warning("Nenhum timestamp válido. Usando now() como fallback.")
             ts_max = pd.Timestamp.now()
 
+        df_trusted_7dias = df_trusted[df_trusted["horas"] >= ts_max - pd.Timedelta(days=7)].copy()
+
         df_trusted = df_trusted[df_trusted["horas"] >= ts_max - pd.Timedelta(hours=2)]
         df_trusted = df_trusted.drop_duplicates(subset=["macAddress", "horas"]).reset_index(drop=True)
         logger.info("Trusted após filtro 2h (ref=%s): %d registros", ts_max, len(df_trusted))
 
-        # Persiste trusted no S3
         buf = io.StringIO()
-        df_trusted.to_csv(buf, index=False)
+        df_trusted_7dias.to_csv(buf, index=False)
         s3.put_object(Bucket=BUCKET, Key=TRUSTED_KEY, Body=buf.getvalue().encode("utf-8"), ContentType="text/csv")
 
-        # Consultas em lote
         macs_novos        = df_novas["macAddress"].unique().tolist()
         limites           = buscar_limites_em_lote(cursor, macs_novos)
         dados_financeiros = buscar_dados_financeiros_em_lote(cursor, macs_novos)
 
-        # Registro mais recente por MAC
         df_novas["horas"] = pd.to_datetime(df_novas["horas"])
         df_novas = df_novas.sort_values("horas").groupby("macAddress", as_index=False).tail(1)
 
@@ -776,11 +802,14 @@ def lambda_handler(event, context):
             )
             client_records.append(record)
 
+        tendencia_7dias = simular_tendencia_7dias(df_trusted_7dias)
+
         output = {
             "maquinas": client_records,
             "kpis":     gerar_kpis(client_records),
             "ranking":  gerar_ranking(client_records),
             "historico": gerar_historico(client_records),
+            "tendencia_7dias": tendencia_7dias,
         }
 
         s3.put_object(
