@@ -36,9 +36,9 @@ def conectar_mysql():
     )
 
 
-def regressaoLinear(ultimas2hMaquina, componente):
+def regressaoLinear(ultimas2hMaquina, componente, limite):
     if ultimas2hMaquina.empty or len(ultimas2hMaquina) < 4:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados insuficientes"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsaoLimite": "Dados insuficientes"}
 
     df = ultimas2hMaquina.copy()
     df["horas"] = pd.to_datetime(df["horas"], errors="coerce")
@@ -46,7 +46,7 @@ def regressaoLinear(ultimas2hMaquina, componente):
     df = df.dropna(subset=["horas", componente]).sort_values("horas")
 
     if df.empty or len(df) < 2:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados insuficientes"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsaoLimite": "Dados insuficientes"}
 
     intervaloMinutos = 10
     df["x"] = (df["horas"] - df["horas"].min()).dt.total_seconds() / (60 * intervaloMinutos)
@@ -57,10 +57,10 @@ def regressaoLinear(ultimas2hMaquina, componente):
     x, y = x[mascara], y[mascara]
 
     if len(x) < 2:
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Dados inválidos"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsaoLimite": "Dados inválidos"}
 
     if np.all(x == x[0]):
-        return {"a": 0, "b": round(float(np.mean(y)), 2), "reta": [], "previsao100": "Sem variação temporal"}
+        return {"a": 0, "b": round(float(np.mean(y)), 2), "reta": [], "previsaoLimite": "Sem variação temporal"}
 
     try:
         a, b = np.polyfit(x, y, 1)
@@ -71,21 +71,27 @@ def regressaoLinear(ultimas2hMaquina, componente):
         r2 = float(0 if ss_tot == 0 else 1 - (ss_res / ss_tot))
     except Exception as erro:
         logger.warning("Erro regressão linear: %s", erro)
-        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsao100": "Erro regressão"}
+        return {"a": 0, "b": 0, "r2": 0, "reta": [], "previsaoLimite": "Erro regressão"}
 
-    previsao100 = "Sem previsão"
+    previsao = "Sem previsão"
     reta = []
-    if a > 0.05 and r2 >= 0.7:
-        x100 = (100 - b) / a
-        if 0 <= x100 <= 8640:
-            data_prev = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(x100 * intervaloMinutos, unit="m")
-            previsao100 = "≈" + str(data_prev)
+    limiteA = {"cpuPorcentagem": 0.3, "porcentagemRam": 0.1, "porcentagemDisco": 0.03}
+    if a > limiteA[componente] and r2 >= 0.7:
+        if y[-1] >= limite:
+            previsao = "Já está crítico"
+        else:
+            prevCriticidade = (limite - b) / a
+            if prevCriticidade < x.max():
+                previsao = "Limite já atingido"
+            elif 0 <= prevCriticidade <= 8640:
+                data_prev = pd.to_datetime(df["horas"].min()) + pd.to_timedelta(prevCriticidade * intervaloMinutos, unit="m")
+                previsao = "≈" + str(data_prev)
 
-        reta = [
-            {"x": str(df["horas"].min()), "y": round(a * x.min() + b, 2)},
-            {"x": str(df["horas"].max()), "y": round(a * x.max() + b, 2)},
-        ]
-    return {"a": a, "b": round(b, 2), "r2": round(r2, 2), "reta": reta, "previsao100": previsao100}
+            reta = [
+                {"x": str(df["horas"].min()), "y": round(a * x.min() + b, 2)},
+                {"x": str(df["horas"].max()), "y": round(a * x.max() + b, 2)},
+            ]
+    return {"a": a, "b": round(b, 2), "r2": round(r2, 2), "reta": reta, "previsaoLimite": previsao}
 
 
 def classificarStatusAtual(valorAtual, limite):
@@ -99,16 +105,17 @@ def classificarStatusAtual(valorAtual, limite):
 
 
 def classificarOscilacao(valorAtual, mediaHistorica, desvio):
+    if desvio is None or np.isnan(desvio) or desvio <= 0:
+        return "Sem variação"
+    desvio = max(desvio, 3)
     distancia = abs(valorAtual - mediaHistorica)
     if distancia <= desvio:
-        return "Baixa (abaixo que 1σ)"
+        return "Baixa (abaixo de 1σ)"
     elif distancia <= desvio * 2:
         return "Média (entre 1σ e 2σ)"
     elif distancia <= desvio * 3:
         return "Alta  (entre 2σ e 3σ)"
-    elif distancia <= desvio * 4:
-        return "Severa (acima de 3σ)"
-    return "Desconhecido (dados insuficientes)"
+    return "Severa (acima de 3σ)"
 
 
 def classificarDegradacao(mediaHistorica, limite):
@@ -606,9 +613,9 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
     degradacao_ram   = classificarDegradacao(media_ram,   limite_ram)
     degradacao_disco = classificarDegradacao(media_disco, limite_disco)
 
-    previsao_cpu   = regressaoLinear(historico_2h_mac, "cpuPorcentagem")
-    previsao_ram   = regressaoLinear(historico_2h_mac, "porcentagemRam")
-    previsao_disco = regressaoLinear(historico_2h_mac, "porcentagemDisco")
+    previsao_cpu   = regressaoLinear(historico_2h_mac, "cpuPorcentagem", limite_cpu)
+    previsao_ram   = regressaoLinear(historico_2h_mac, "porcentagemRam", limite_ram)
+    previsao_disco = regressaoLinear(historico_2h_mac, "porcentagemDisco", limite_disco)
 
     saude = 100 - (
         penalidadeSaudeComponente(status_cpu,   oscilacao_cpu, degradacao_cpu,   previsao_cpu)
