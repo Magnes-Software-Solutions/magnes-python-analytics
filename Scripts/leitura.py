@@ -453,7 +453,7 @@ def gerar_ranking(linhas_client):
     return ranking
 
 
-def gerar_historico(linhas_client, limite=1):
+def gerar_historico(linhas_client, limite=2):
     grupos = _agrupar_por_mac(linhas_client)
     return [
         {
@@ -785,7 +785,7 @@ def lambda_handler(event, context):
         dados_financeiros = buscar_dados_financeiros_em_lote(cursor, macs_novos)
 
         df_novas["horas"] = pd.to_datetime(df_novas["horas"])
-        df_novas = df_novas.sort_values("horas").groupby("macAddress", as_index=False).tail(1)
+        df_novas = df_novas.sort_values("horas").groupby("macAddress", as_index=False).tail(2)
 
         fin_padrao = {"valorExame": 0.0, "examesPorHora": 0, "metaSLA": 100.0,
                       "custoCorretiva": 0.0, "bairro": "N/A", "cidade": "N/A", "numero": "N/A", "cep": "N/A"}
