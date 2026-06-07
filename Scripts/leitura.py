@@ -494,6 +494,11 @@ def buscar_nome(cursor, mac_address):
     resultado = cursor.fetchone()
     return resultado[0] if resultado else None
 
+def buscar_statusAtividade(cursor, mac_address):
+    cursor.execute("SELECT statusAtividade FROM maquina WHERE macAddress = %s", (mac_address,))
+    resultado = cursor.fetchone()
+    return resultado[0] if resultado else None
+
 
 def buscar_limites_em_lote(cursor, lista_macs):
     if not lista_macs:
@@ -546,6 +551,7 @@ def gerar_linha_trusted(cursor, linha):
     mac_address = normalizar_mac(linha["macAddress"])
     empresa     = buscar_empresa(cursor, mac_address)
     nomeMaquina = buscar_nome(cursor, mac_address)
+    statusAtividade = buscar_statusAtividade(cursor, mac_address)
 
     def gb(val): return round(val / 1024**3, 2)
 
@@ -558,6 +564,7 @@ def gerar_linha_trusted(cursor, linha):
         "empresa":           empresa,
         "macAddress":        mac_address,
         "nomeMaquina":       nomeMaquina,
+        "statusAtividade":   statusAtividade,
         "horas":             linha["horario"],
         "cpuPorcentagem":    linha["cpuPorcentagem"],
         "cpuNucleosFisicos": linha["cpuNucleosFisicos"],
@@ -656,6 +663,7 @@ def construir_registro_cliente(trusted_row, limites_mac, financeiro_mac, histori
         "empresa":     trusted_row["empresa"],
         "macAddress":  mac,
         "nomeMaquina": trusted_row["nomeMaquina"],
+        "statusAtividade": trusted_row["statusAtividade"],
         "horario":     str(trusted_row["horas"]),
         "cpu": {
             "uso": round(cpu_uso, 1), "limite": limite_cpu,
